@@ -40,21 +40,22 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
     >
       <div
         id="role-switcher-panel"
-        className="bg-white w-full max-w-md rounded-[32px] p-6 shadow-2xl border border-black/[0.06] space-y-4 text-center"
+        className="bg-clay-surface w-full max-w-md rounded-clay-xl p-6 shadow-clay-raised space-y-4 text-center"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="text-left">
-            <h3 className="text-2xl font-black text-[#1C1C1E] tracking-tight">
+            <h3 className="text-2xl font-black text-clay-ink tracking-tight">
               Кто вы?
             </h3>
-            <p className="text-xs text-[#8E8E93] font-medium">
+            <p className="text-xs text-clay-ink-soft font-medium">
               Выберите удобный режим работы с SilverCare
             </p>
           </div>
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-[#F2F2F7] flex items-center justify-center text-[#8E8E93] cursor-pointer"
+            aria-label="Закрыть"
+            className="clay-tap w-8 h-8 rounded-full bg-clay-surface-sunken flex items-center justify-center text-clay-ink-soft cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
@@ -64,28 +65,28 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
           {/* Card 1: Elder Mode */}
           <button
             onClick={() => handleChoose('elderly')}
-            className={`w-full min-h-[96px] p-4 rounded-3xl border-2 text-left flex items-center justify-between transition-all cursor-pointer ${
+            className={`clay-tap w-full min-h-[96px] p-4 rounded-clay-lg text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${
               activeRole === 'elderly'
-                ? 'border-[#007AFF] bg-[#007AFF]/5 shadow-sm'
-                : 'border-black/[0.08] hover:bg-[#F2F2F7]'
+                ? 'bg-clay-primary/8 shadow-clay-primary ring-2 ring-clay-primary/30'
+                : 'bg-clay-surface-sunken hover:brightness-[0.98] shadow-clay-raised-sm'
             }`}
           >
-            <div className="flex items-center gap-3.5">
-              <div className="w-14 h-14 rounded-2xl bg-[#007AFF]/10 text-3xl flex items-center justify-center shrink-0">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-14 h-14 rounded-2xl bg-clay-primary/10 text-3xl flex items-center justify-center shrink-0">
                 👵
               </div>
-              <div>
-                <h4 className="text-lg font-black text-[#1C1C1E]">
+              <div className="min-w-0 text-left">
+                <h4 className="text-lg font-black text-clay-ink">
                   Я пользуюсь SilverCare
                 </h4>
-                <p className="text-xs text-[#8E8E93] font-semibold">
+                <p className="text-xs text-clay-ink-soft font-semibold">
                   Анна Павловна • Крупные кнопки, максимальная простота
                 </p>
               </div>
             </div>
 
             {activeRole === 'elderly' && (
-              <div className="w-6 h-6 rounded-full bg-[#007AFF] text-white flex items-center justify-center shrink-0">
+              <div className="w-6 h-6 rounded-full bg-clay-primary text-white flex items-center justify-center shrink-0">
                 <Check className="w-3.5 h-3.5 stroke-[3]" />
               </div>
             )}
@@ -94,21 +95,21 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
           {/* Card 2: Caregiver Mode */}
           <button
             onClick={() => handleChoose('caregiver')}
-            className={`w-full min-h-[96px] p-4 rounded-3xl border-2 text-left flex items-center justify-between transition-all cursor-pointer ${
+            className={`clay-tap w-full min-h-[96px] p-4 rounded-clay-lg text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${
               activeRole === 'caregiver'
-                ? 'border-[#FF2D55] bg-[#FF2D55]/5 shadow-sm'
-                : 'border-black/[0.08] hover:bg-[#F2F2F7]'
+                ? 'bg-[#FF2D55]/8 shadow-[0_14px_28px_-8px_rgba(255,45,85,0.35)] ring-2 ring-[#FF2D55]/30'
+                : 'bg-clay-surface-sunken hover:brightness-[0.98] shadow-clay-raised-sm'
             }`}
           >
-            <div className="flex items-center gap-3.5">
+            <div className="flex items-center gap-3.5 min-w-0">
               <div className="w-14 h-14 rounded-2xl bg-[#FF2D55]/10 text-3xl flex items-center justify-center shrink-0">
                 ❤️
               </div>
-              <div>
-                <h4 className="text-lg font-black text-[#1C1C1E]">
+              <div className="min-w-0 text-left">
+                <h4 className="text-lg font-black text-clay-ink">
                   Я родственник / опекун
                 </h4>
-                <p className="text-xs text-[#8E8E93] font-semibold">
+                <p className="text-xs text-clay-ink-soft font-semibold">
                   Сын Алексей • Контроль лекарств, маршрут, безопасность
                 </p>
               </div>
@@ -122,24 +123,26 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
           </button>
         </div>
 
-        {/* Face ID Demo Link */}
-        <div className="pt-2 border-t border-black/[0.06] flex items-center justify-between px-2 text-xs">
-          <span className="text-[#8E8E93]">Вход по биометрии:</span>
+        {/* Face ID Demo Link — wraps instead of clipping on narrow screens */}
+        <div className="pt-2 border-t border-black/[0.06] flex items-center justify-center flex-wrap gap-x-2 gap-y-1 text-xs">
+          <span className="text-clay-ink-soft">Вход по биометрии:</span>
           <button
             onClick={() => {
               onClose();
               onOpenFaceIdDemo();
             }}
-            className="text-[#007AFF] font-bold hover:underline cursor-pointer"
+            className="text-clay-primary-ink font-bold hover:underline cursor-pointer"
           >
             👤 Проверить Face ID
           </button>
         </div>
 
         {/* Discreet secondary entries: caregiver settings & jury demo tools.
-            Intentionally small/quiet — not part of the elderly main scenario. */}
+            Intentionally small/quiet — not part of the elderly main scenario.
+            Wraps onto its own line per item on very narrow screens instead of
+            being clipped by the modal edge. */}
         {(onOpenSettings || onOpenDemoControl) && (
-          <div className="pt-2 border-t border-black/[0.06] flex items-center justify-center gap-4 text-xs">
+          <div className="pt-2 border-t border-black/[0.06] flex items-center justify-center flex-wrap gap-x-4 gap-y-2 text-xs">
             {onOpenSettings && (
               <button
                 id="btn-more-menu-settings"
@@ -147,9 +150,9 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
                   onClose();
                   onOpenSettings();
                 }}
-                className="text-[#8E8E93] hover:text-[#1C1C1E] font-semibold flex items-center gap-1 cursor-pointer"
+                className="text-clay-ink-soft hover:text-clay-ink font-semibold flex items-center gap-1 cursor-pointer"
               >
-                <Settings className="w-3.5 h-3.5" />
+                <Settings className="w-3.5 h-3.5 shrink-0" />
                 <span>Настройки и лекарства</span>
               </button>
             )}
@@ -160,9 +163,9 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
                   onClose();
                   onOpenDemoControl();
                 }}
-                className="text-[#8E8E93] hover:text-[#1C1C1E] font-semibold flex items-center gap-1 cursor-pointer"
+                className="text-clay-ink-soft hover:text-clay-ink font-semibold flex items-center gap-1 cursor-pointer"
               >
-                <Wrench className="w-3.5 h-3.5" />
+                <Wrench className="w-3.5 h-3.5 shrink-0" />
                 <span>Демо для жюри</span>
               </button>
             )}

@@ -108,11 +108,11 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
     return (
       <div
         id="alarm-success-screen"
-        className="fixed inset-0 z-50 bg-[#34C759] text-white flex flex-col items-center justify-center p-6 select-none animate-in fade-in duration-300 font-sans"
+        className="fixed inset-0 z-50 bg-clay-success text-white flex flex-col items-center justify-center p-6 select-none animate-in fade-in duration-300 font-sans"
       >
         <div className="flex flex-col items-center text-center max-w-md mx-auto">
           {/* Pulsing checkmark icon */}
-          <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-white text-[#34C759] flex items-center justify-center shadow-xl mb-6 animate-bounce">
+          <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-white text-clay-success flex items-center justify-center shadow-xl mb-6 animate-bounce">
             <Check className="w-16 h-16 sm:w-20 sm:h-20 stroke-[3.5]" />
           </div>
 
@@ -174,10 +174,10 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
       {/* Scrollable middle zone: only THIS area scrolls if content is tall.
           The confirm button below stays pinned and always visible without scrolling. */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-3">
-      <div className="w-full max-w-md mx-auto bg-white rounded-[32px] p-6 sm:p-7 shadow-2xl border border-black/[0.06] text-center flex flex-col items-center">
+      <div className="w-full max-w-md mx-auto bg-clay-surface rounded-clay-xl p-6 sm:p-7 shadow-clay-raised text-center flex flex-col items-center">
         {/* User identification badge */}
         {userName && (
-          <div className="inline-flex items-center gap-2 bg-[#F2F2F7] px-3 py-1 rounded-full mb-3">
+          <div className="inline-flex items-center gap-2 bg-clay-surface-sunken px-3 py-1 rounded-full mb-3">
             {userAvatarUrl ? (
               <img
                 src={userAvatarUrl}
@@ -185,19 +185,19 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
                 className="w-5 h-5 rounded-full object-cover"
               />
             ) : null}
-            <span className="text-xs font-semibold text-[#8E8E93]">
+            <span className="text-xs font-semibold text-clay-ink-soft">
               Для: {userName}
             </span>
           </div>
         )}
 
         {/* Scheduled Time Display */}
-        <div className="text-4xl sm:text-5xl font-black text-[#1C1C1E] tracking-tight mb-2 font-sans">
+        <div className="text-4xl sm:text-5xl font-black text-clay-ink tracking-tight mb-2 font-sans">
           {item.time}
         </div>
 
         {/* Medicine Visual */}
-        <div className="my-2 p-3 bg-[#F2F2F7] rounded-3xl border border-black/[0.04]">
+        <div className="my-2 p-3 bg-clay-surface-sunken rounded-3xl">
           <MedicationVisual
             preset={item.photoPreset}
             customUrl={item.customPhotoUrl}
@@ -206,18 +206,18 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
         </div>
 
         {/* Medication Name */}
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1C1C1E] tracking-tight mt-3 mb-1 break-words font-sans">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-clay-ink tracking-tight mt-3 mb-1 break-words font-sans">
           {item.name}
         </h1>
 
         {/* Dosage */}
-        <div className="text-base sm:text-lg font-semibold text-[#007AFF] bg-[#007AFF]/10 px-4 py-1 rounded-full mt-1">
+        <div className="text-base sm:text-lg font-semibold text-clay-primary-ink bg-clay-primary/10 px-4 py-1 rounded-full mt-1">
           {item.dosage}
         </div>
 
         {/* Specific instruction if available */}
         {item.instructions && (
-          <p className="text-sm font-normal text-[#8E8E93] mt-3 max-w-sm">
+          <p className="text-sm font-normal text-clay-ink-soft mt-3 max-w-sm">
             {item.instructions}
           </p>
         )}
@@ -234,12 +234,12 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
         <button
           id="btn-replay-voice"
           onClick={handleReplayVoice}
-          className={`mt-5 w-full h-12 bg-[#F2F2F7] hover:bg-[#E5E5EA] active:opacity-70 text-[#1C1C1E] text-sm font-semibold rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            isSpeaking ? 'ring-2 ring-[#007AFF] bg-[#007AFF]/10 text-[#007AFF]' : ''
+          className={`clay-tap mt-5 w-full h-12 bg-clay-surface-sunken hover:brightness-95 text-clay-ink text-sm font-semibold rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            isSpeaking ? 'ring-2 ring-clay-primary bg-clay-primary/10 text-clay-primary-ink' : ''
           }`}
           aria-label="Прослушать голосовое напоминание ещё раз"
         >
-          <Volume2 className={`w-5 h-5 text-[#007AFF] ${isSpeaking ? 'animate-pulse' : ''}`} />
+          <Volume2 className={`w-5 h-5 text-clay-primary ${isSpeaking ? 'animate-pulse' : ''}`} />
           <span>{isSpeaking ? 'Голос звучит...' : 'Прослушать голос ещё раз'}</span>
         </button>
       </div>
@@ -251,10 +251,10 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
         <button
           id="btn-confirm-taken"
           onClick={handleOneClickConfirm}
-          className="w-full h-18 min-h-[72px] bg-[#34C759] hover:bg-[#30B750] active:scale-[0.98] text-white text-2xl font-bold rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all cursor-pointer"
+          className="clay-tap w-full h-18 min-h-[72px] bg-clay-success active:scale-[0.98] text-white text-2xl font-bold rounded-clay-lg shadow-clay-success flex items-center justify-center gap-3 transition-all cursor-pointer"
           aria-label="Я принял лекарство, остановить будильник"
         >
-          <div className="w-10 h-10 rounded-full bg-white text-[#34C759] flex items-center justify-center shrink-0 shadow-xs">
+          <div className="w-10 h-10 rounded-full bg-white text-clay-success flex items-center justify-center shrink-0 shadow-xs">
             <Check className="w-7 h-7 stroke-[3]" />
           </div>
           <span>Я принял</span>
@@ -264,7 +264,8 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
         <button
           id="btn-postpone-alarm"
           onClick={handleSnoozeClick}
-          className="text-white/70 hover:text-white text-sm font-medium py-2 text-center cursor-pointer"
+          aria-label="Отложить сигнал на 5 минут — напомнит о лекарстве снова"
+          className="text-white/70 hover:text-white text-sm font-medium py-2 text-center cursor-pointer underline decoration-white/30 underline-offset-4"
         >
           Отложить на 5 минут
         </button>

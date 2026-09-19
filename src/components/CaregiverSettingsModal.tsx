@@ -312,7 +312,7 @@ export const CaregiverSettingsModal: React.FC<CaregiverSettingsModalProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-xs font-semibold text-[#8E8E93] mb-1 uppercase tracking-wider">
                     Дозировка *

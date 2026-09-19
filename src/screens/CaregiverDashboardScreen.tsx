@@ -433,7 +433,7 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs font-bold text-[#8E8E93] block mb-1">
                     Дозировка

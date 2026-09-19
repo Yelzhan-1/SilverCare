@@ -6,13 +6,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { TodayScheduleItem, UserProfile } from './types/medication';
 import { UserRole } from './types/silvercare';
-import { storageService } from './services/storageService';
+import { storageService, getTodayDateKey } from './services/storageService';
 import { notificationService as legacyNotificationService } from './services/notificationService';
 import { notificationService } from './services/notifications/notificationService';
 import { emergencyService, EmergencySnapshot } from './services/emergency/emergencyService';
 import { medicationRepository } from './repositories/medicationRepository';
 import { scheduleRepository } from './repositories/scheduleRepository';
 import { audioAlarmService } from './services/audioAlarmService';
+import { snoozeService, PersistedSnooze } from './services/snoozeService';
 
 // Screens
 import { TodayScreen } from './screens/TodayScreen';
@@ -48,9 +49,12 @@ export default function App() {
   // (never blocks the 1-click confirm flow; auto-hides if ignored).
   const [showMemoryPrompt, setShowMemoryPrompt] = useState(false);
 
-  // 2c. Honest "snooze": map of scheduleItem.id -> timestamp (ms) when the alarm
-  // will ring again. A real setTimeout re-opens the AlarmScreen for that item.
-  const [snoozes, setSnoozes] = useState<Record<string, number>>({});
+  // 2c. Honest "snooze": map of scheduleItem.id -> persisted snooze record
+  // (absolute ringAt ISO timestamp + original scheduled date + a snapshot of
+  // the dose). Persisted to localStorage via snoozeService so it survives a
+  // page reload AND a midnight rollover — a real setTimeout re-opens the
+  // AlarmScreen for that exact dose when ringAt arrives.
+  const [snoozes, setSnoozes] = useState<Record<string, PersistedSnooze>>({});
   const snoozeTimersRef = useRef<Record<string, number>>({});
 
   // 3. User Profile & Face ID State
@@ -117,12 +121,86 @@ export default function App() {
   // Next medication to take
   const nextItem = scheduleItems.find((i) => i.status === 'upcoming') || null;
 
-  // Human-readable "HH:MM" labels for any currently-snoozed items
-  const snoozeLabels: Record<string, string> = {};
-  Object.entries(snoozes).forEach(([id, ts]) => {
-    const d = new Date(ts);
-    snoozeLabels[id] = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  // "HH:MM" formatter shared by the clock tick and snooze labels
+  const formatHHMM = (d: Date): string =>
+    `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+  // Human-readable "HH:MM" label + absolute ISO ring time for any currently
+  // snoozed items — the ISO is what NextMedicationCard counts its countdown
+  // down to (instead of the now-past original scheduled time).
+  const snoozeInfo: Record<string, { label: string; ringAtIso: string }> = {};
+  Object.values(snoozes).forEach((record) => {
+    snoozeInfo[record.id] = {
+      label: formatHHMM(new Date(record.ringAtIso)),
+      ringAtIso: record.ringAtIso,
+    };
   });
+
+  // Fires when a snoozed reminder's ringAt time arrives: re-checks the
+  // durable logs (not the ephemeral "today" schedule) so a midnight rollover
+  // can never hide a dose that was never actually confirmed.
+  const fireSnooze = useCallback((record: PersistedSnooze) => {
+    delete snoozeTimersRef.current[record.id];
+    snoozeService.remove(record.id);
+    setSnoozes((prev) => {
+      if (!(record.id in prev)) return prev;
+      const next = { ...prev };
+      delete next[record.id];
+      return next;
+    });
+
+    if (!snoozeService.isAlreadyTaken(record)) {
+      setActiveAlarmItem(record.item);
+    }
+  }, []);
+
+  // Schedules (or reschedules) the real setTimeout that will re-ring this
+  // snoozed dose. `delayOverrideMs` is used only when restoring an overdue
+  // snooze after a reload, to stagger multiple simultaneous re-rings instead
+  // of having them silently clobber one another.
+  const scheduleSnoozeTimer = useCallback(
+    (record: PersistedSnooze, delayOverrideMs?: number) => {
+      if (snoozeTimersRef.current[record.id]) {
+        clearTimeout(snoozeTimersRef.current[record.id]);
+      }
+      const delay =
+        delayOverrideMs ?? Math.max(0, new Date(record.ringAtIso).getTime() - Date.now());
+      snoozeTimersRef.current[record.id] = window.setTimeout(() => fireSnooze(record), delay);
+    },
+    [fireSnooze]
+  );
+
+  // On mount: restore any snoozed reminders that survived a reload. Ones that
+  // are already overdue (app was closed past ringAt) are re-armed with a
+  // small stagger so they still ring — never silently dropped.
+  useEffect(() => {
+    const persisted = snoozeService.getAll();
+    if (persisted.length === 0) return;
+
+    const restored: Record<string, PersistedSnooze> = {};
+    let overdueIndex = 0;
+
+    persisted.forEach((record) => {
+      if (snoozeService.isAlreadyTaken(record)) {
+        snoozeService.remove(record.id);
+        return;
+      }
+      const remaining = new Date(record.ringAtIso).getTime() - Date.now();
+      restored[record.id] = record;
+      if (remaining <= 0) {
+        scheduleSnoozeTimer(record, overdueIndex * 4000);
+        overdueIndex += 1;
+      } else {
+        scheduleSnoozeTimer(record);
+      }
+    });
+
+    if (Object.keys(restored).length > 0) {
+      setSnoozes((prev) => ({ ...prev, ...restored }));
+    }
+    // Restore-on-mount only; scheduleSnoozeTimer/fireSnooze are stable (useCallback, no changing deps).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Clean up any pending snooze timers on unmount (avoid leaked alarms)
   useEffect(() => {
@@ -196,11 +274,13 @@ export default function App() {
     await medicationRepository.recordIntake(item.medicationId, item.time, 'taken', 12);
     await scheduleRepository.setCompletedByMedication(item.medicationId, true);
 
-    // 3. Clear any pending snooze timer for this item — it's taken now, no need to re-ring
+    // 3. Clear any pending snooze timer + persisted record for this item —
+    // it's taken now, no need to re-ring
     if (snoozeTimersRef.current[item.id]) {
       clearTimeout(snoozeTimersRef.current[item.id]);
       delete snoozeTimersRef.current[item.id];
     }
+    snoozeService.remove(item.id);
     setSnoozes((prev) => {
       if (!(item.id in prev)) return prev;
       const next = { ...prev };
@@ -221,22 +301,28 @@ export default function App() {
   };
 
   // HONEST SNOOZE: really re-triggers the same alarm ~5 minutes later,
-  // instead of silently closing the modal. Shows a live "Отложено до HH:MM" label
-  // on the main screen in the meantime.
+  // instead of silently closing the modal. Shows a live "Отложено до HH:MM"
+  // label + live countdown on the main screen in the meantime, persisted to
+  // localStorage so it survives a reload and correctly honors midnight.
   const SNOOZE_DELAY_MS = 5 * 60 * 1000;
 
   const handleSnoozeAlarm = (item: TodayScheduleItem) => {
-    const ringAt = Date.now() + SNOOZE_DELAY_MS;
-    const ringAtDate = new Date(ringAt);
-    const label = `${String(ringAtDate.getHours()).padStart(2, '0')}:${String(ringAtDate.getMinutes()).padStart(2, '0')}`;
+    const ringAtDate = new Date(Date.now() + SNOOZE_DELAY_MS);
+    const label = formatHHMM(ringAtDate);
 
-    // Replace any existing timer for this item so repeated snoozes don't stack
-    if (snoozeTimersRef.current[item.id]) {
-      clearTimeout(snoozeTimersRef.current[item.id]);
-    }
+    const record: PersistedSnooze = {
+      id: item.id,
+      medicationId: item.medicationId,
+      time: item.time,
+      originalDate: getTodayDateKey(),
+      ringAtIso: ringAtDate.toISOString(),
+      item,
+    };
 
-    setSnoozes((prev) => ({ ...prev, [item.id]: ringAt }));
+    snoozeService.save(record);
+    setSnoozes((prev) => ({ ...prev, [record.id]: record }));
     setActiveAlarmItem(null);
+    scheduleSnoozeTimer(record);
 
     legacyNotificationService.showNotification(
       'SilverCare: Напоминание отложено',
@@ -246,28 +332,6 @@ export default function App() {
       body: `Напомним снова в ${label}`,
       tag: 'info',
     });
-
-    const timerId = window.setTimeout(() => {
-      delete snoozeTimersRef.current[item.id];
-      setSnoozes((prev) => {
-        const next = { ...prev };
-        delete next[item.id];
-        return next;
-      });
-
-      // Re-check the freshest status before re-ringing: only skip if it was
-      // already confirmed as taken while snoozed. If it's still upcoming (or
-      // has since drifted into "missed"), keep nagging — the goal is 0% missed.
-      const freshItem = storageService
-        .getTodaySchedule()
-        .find((i) => i.medicationId === item.medicationId && i.time === item.time);
-
-      if (freshItem && freshItem.status !== 'taken') {
-        setActiveAlarmItem(freshItem);
-      }
-    }, SNOOZE_DELAY_MS);
-
-    snoozeTimersRef.current[item.id] = timerId;
   };
 
   const handleOpenFaceIdModal = (mode: 'register' | 'verify' = 'register') => {
@@ -291,7 +355,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#F2F2F7]">
+    <div className="min-h-screen w-full bg-clay-bg">
       {/* IN-APP TOAST ALERT */}
       {toastMessage && (
         <div
@@ -304,32 +368,36 @@ export default function App() {
       )}
 
       {/* SOFT, OPTIONAL MEMORY EXERCISE SUGGESTION — appears briefly after a
-          confirmation, never blocks the main scenario, and auto-hides itself. */}
+          confirmation, never blocks the main scenario, and auto-hides itself.
+          Wraps gracefully on narrow viewports instead of clipping/overflowing. */}
       {showMemoryPrompt && (
         <div
           id="memory-exercise-soft-prompt"
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-white text-[#1C1C1E] pl-4 pr-2 py-2 rounded-full shadow-xl border border-black/[0.06] flex items-center gap-2.5 max-w-[92%] animate-in fade-in slide-in-from-bottom-4 duration-300"
+          role="status"
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-clay-surface text-clay-ink pl-4 pr-2 py-2 rounded-clay-lg shadow-clay-raised flex flex-wrap items-center justify-center gap-2.5 w-[92%] max-w-sm animate-in fade-in slide-in-from-bottom-4 duration-300"
         >
-          <span className="text-lg">🧠</span>
-          <span className="text-sm font-semibold whitespace-nowrap">Потренировать память?</span>
-          <button
-            id="btn-accept-memory-prompt"
-            onClick={() => {
-              setShowMemoryPrompt(false);
-              setShowMemoryGame(true);
-            }}
-            className="h-9 px-3.5 bg-[#007AFF] hover:bg-blue-600 text-white text-xs font-bold rounded-full shrink-0 cursor-pointer transition-colors"
-          >
-            Да, 30 сек
-          </button>
-          <button
-            id="btn-dismiss-memory-prompt"
-            onClick={() => setShowMemoryPrompt(false)}
-            aria-label="Не сейчас"
-            className="w-7 h-7 rounded-full text-[#8E8E93] hover:bg-[#F2F2F7] flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-          >
-            ✕
-          </button>
+          <span className="text-lg" aria-hidden="true">🧠</span>
+          <span className="text-sm font-semibold text-center">Потренировать память?</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              id="btn-accept-memory-prompt"
+              onClick={() => {
+                setShowMemoryPrompt(false);
+                setShowMemoryGame(true);
+              }}
+              className="clay-tap h-9 px-3.5 bg-clay-primary hover:brightness-110 text-white text-xs font-bold rounded-full cursor-pointer transition-colors"
+            >
+              Да, 30 сек
+            </button>
+            <button
+              id="btn-dismiss-memory-prompt"
+              onClick={() => setShowMemoryPrompt(false)}
+              aria-label="Не сейчас, скрыть предложение потренировать память"
+              className="w-7 h-7 rounded-full text-clay-ink-soft hover:bg-clay-surface-sunken flex items-center justify-center cursor-pointer transition-colors"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
@@ -339,7 +407,7 @@ export default function App() {
           scheduleItems={scheduleItems}
           nextItem={nextItem}
           userProfile={userProfile}
-          snoozeLabels={snoozeLabels}
+          snoozeInfo={snoozeInfo}
           onConfirmIntake={handleConfirmTaken}
           onOpenAlarm={(item) => setActiveAlarmItem(item)}
           onOpenFaceIdModal={() => handleOpenFaceIdModal('register')}
