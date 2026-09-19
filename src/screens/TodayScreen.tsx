@@ -14,8 +14,9 @@ interface TodayScreenProps {
   scheduleItems: TodayScheduleItem[];
   nextItem: TodayScheduleItem | null;
   userProfile: UserProfile;
-  /** scheduleItem.id -> "HH:MM" when snoozed, so cards can show "Отложено до ..." */
-  snoozeLabels: Record<string, string>;
+  /** scheduleItem.id -> snooze label + absolute ring ISO, so cards can show
+   * "Отложено до ..." and count down to the real ring time. */
+  snoozeInfo: Record<string, { label: string; ringAtIso: string }>;
   onConfirmIntake: (item: TodayScheduleItem) => void;
   onOpenAlarm: (item: TodayScheduleItem) => void;
   onOpenFaceIdModal: () => void;
@@ -36,7 +37,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   scheduleItems,
   nextItem,
   userProfile,
-  snoozeLabels,
+  snoozeInfo,
   onConfirmIntake,
   onOpenAlarm,
   onOpenVoiceModal,
@@ -55,10 +56,10 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   const totalCount = scheduleItems.length;
 
   return (
-    <div className="flex-1 flex flex-col bg-[#F2F2F7] min-h-screen relative overflow-x-hidden font-sans">
+    <div className="flex-1 flex flex-col bg-clay-bg min-h-screen relative overflow-x-hidden font-sans">
       {/* Active Demo Countdown Banner */}
       {demoCountdown !== null && (
-        <div className="sticky top-0 z-30 bg-[#FF3B30] text-white p-3 px-5 flex items-center justify-between shadow-md">
+        <div className="sticky top-0 z-30 bg-clay-danger text-white p-3 px-5 flex items-center justify-between shadow-md">
           <div className="flex items-center gap-2 font-bold text-sm sm:text-base">
             <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
             <span>Демо-таймер проверки безопасности: </span>
@@ -83,14 +84,14 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xl">💊</span>
-              <span className="text-base sm:text-lg font-black text-[#1C1C1E] tracking-tight">
+              <span className="text-base sm:text-lg font-black text-clay-ink tracking-tight">
                 SilverCare
               </span>
-              <span className="hidden sm:inline text-xs text-[#8E8E93] font-medium">
+              <span className="hidden sm:inline text-xs text-clay-ink-soft font-medium">
                 • {dateStr}
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-[#8E8E93] font-semibold mt-0.5">
+            <p className="text-xs sm:text-sm text-clay-ink-soft font-semibold mt-0.5">
               Добрый день, {userProfile.name}! ❤️
             </p>
           </div>
@@ -99,7 +100,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
           <button
             id="btn-open-more-menu"
             onClick={onOpenMoreMenu}
-            className="w-9 h-9 rounded-full bg-white/70 hover:bg-white border border-black/[0.06] text-[#8E8E93] hover:text-[#1C1C1E] flex items-center justify-center shadow-2xs transition-all cursor-pointer"
+            className="clay-tap w-9 h-9 rounded-full bg-clay-surface hover:brightness-95 text-clay-ink-soft hover:text-clay-ink flex items-center justify-center shadow-clay-raised-sm transition-all cursor-pointer"
             aria-label="Ещё: опекун, настройки и демо для жюри"
             title="Ещё"
           >
@@ -117,7 +118,8 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
             onConfirmIntake={onConfirmIntake}
             onTriggerAlarm={onOpenAlarm}
             onOpenVoiceSettings={onOpenVoiceModal}
-            snoozedUntilLabel={nextItem ? snoozeLabels[nextItem.id] : null}
+            snoozedUntilLabel={nextItem ? snoozeInfo[nextItem.id]?.label : null}
+            snoozedUntilIso={nextItem ? snoozeInfo[nextItem.id]?.ringAtIso : undefined}
           />
         </section>
 
@@ -131,16 +133,16 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
                 audioAlarmService.triggerHaptic(30);
                 onOpenMemorySuite();
               }}
-              className="min-h-[76px] p-3.5 bg-white hover:bg-zinc-50 border border-black/[0.06] rounded-3xl shadow-xs flex items-center gap-3 text-left transition-all active:scale-98 cursor-pointer"
+              className="clay-tap min-h-[76px] p-3.5 bg-clay-surface hover:brightness-[0.98] rounded-clay-md shadow-clay-raised-sm flex items-center gap-3 text-left transition-all cursor-pointer"
             >
-              <div className="w-12 h-12 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] flex items-center justify-center shrink-0 text-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-clay-primary/10 text-clay-primary flex items-center justify-center shrink-0 text-2xl">
                 🧠
               </div>
               <div className="min-w-0">
-                <h3 className="text-base font-black text-[#1C1C1E] leading-tight">
+                <h3 className="text-base font-black text-clay-ink leading-tight">
                   Память
                 </h3>
-                <p className="text-[11px] font-semibold text-[#8E8E93]">
+                <p className="text-xs font-semibold text-clay-ink-soft">
                   10 мин разминка
                 </p>
               </div>
@@ -152,16 +154,16 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
                 audioAlarmService.triggerHaptic(30);
                 onOpenMyDay();
               }}
-              className="min-h-[76px] p-3.5 bg-white hover:bg-zinc-50 border border-black/[0.06] rounded-3xl shadow-xs flex items-center gap-3 text-left transition-all active:scale-98 cursor-pointer"
+              className="clay-tap min-h-[76px] p-3.5 bg-clay-surface hover:brightness-[0.98] rounded-clay-md shadow-clay-raised-sm flex items-center gap-3 text-left transition-all cursor-pointer"
             >
-              <div className="w-12 h-12 rounded-2xl bg-[#FF9500]/10 text-[#FF9500] flex items-center justify-center shrink-0 text-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-clay-warning/12 text-clay-warning flex items-center justify-center shrink-0 text-2xl">
                 📅
               </div>
               <div className="min-w-0">
-                <h3 className="text-base font-black text-[#1C1C1E] leading-tight">
+                <h3 className="text-base font-black text-clay-ink leading-tight">
                   Мой день
                 </h3>
-                <p className="text-[11px] font-semibold text-[#8E8E93]">
+                <p className="text-xs font-semibold text-clay-ink-soft">
                   Расписание дел
                 </p>
               </div>
@@ -173,16 +175,16 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
                 audioAlarmService.triggerHaptic(30);
                 onOpenFamily();
               }}
-              className="min-h-[76px] p-3.5 bg-white hover:bg-zinc-50 border border-black/[0.06] rounded-3xl shadow-xs flex items-center gap-3 text-left transition-all active:scale-98 cursor-pointer"
+              className="clay-tap min-h-[76px] p-3.5 bg-clay-surface hover:brightness-[0.98] rounded-clay-md shadow-clay-raised-sm flex items-center gap-3 text-left transition-all cursor-pointer"
             >
               <div className="w-12 h-12 rounded-2xl bg-[#FF2D55]/10 text-[#FF2D55] flex items-center justify-center shrink-0 text-2xl">
                 ❤️
               </div>
               <div className="min-w-0">
-                <h3 className="text-base font-black text-[#1C1C1E] leading-tight">
+                <h3 className="text-base font-black text-clay-ink leading-tight">
                   Близкие
                 </h3>
-                <p className="text-[11px] font-semibold text-[#8E8E93]">
+                <p className="text-xs font-semibold text-clay-ink-soft">
                   Сын Алексей
                 </p>
               </div>
@@ -194,16 +196,16 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
                 audioAlarmService.triggerHaptic(50);
                 onOpenEmergency();
               }}
-              className="min-h-[76px] p-3.5 bg-[#FF3B30]/10 hover:bg-[#FF3B30]/15 border-2 border-[#FF3B30]/30 rounded-3xl shadow-xs flex items-center gap-3 text-left transition-all active:scale-98 cursor-pointer"
+              className="clay-tap min-h-[76px] p-3.5 bg-clay-danger/10 hover:bg-clay-danger/15 rounded-clay-md shadow-clay-raised-sm flex items-center gap-3 text-left transition-all cursor-pointer"
             >
-              <div className="w-12 h-12 rounded-2xl bg-[#FF3B30] text-white flex items-center justify-center shrink-0 text-xl font-bold">
+              <div className="w-12 h-12 rounded-2xl bg-clay-danger text-white flex items-center justify-center shrink-0 text-xl font-bold">
                 🆘
               </div>
               <div className="min-w-0">
-                <h3 className="text-base font-black text-[#FF3B30] leading-tight">
+                <h3 className="text-base font-black text-clay-danger leading-tight">
                   Помощь
                 </h3>
-                <p className="text-[11px] font-bold text-[#FF3B30]/80">
+                <p className="text-xs font-bold text-clay-danger/80">
                   Сигнал близким
                 </p>
               </div>
@@ -215,22 +217,22 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         <section aria-label="Голосовой помощник">
           <div
             onClick={onOpenVoiceAssistant}
-            className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-[#007AFF]/20 rounded-3xl flex items-center justify-between shadow-2xs cursor-pointer hover:shadow-xs transition-all active:scale-98"
+            className="clay-tap p-4 bg-clay-primary/8 rounded-clay-md flex items-center justify-between shadow-clay-raised-sm cursor-pointer transition-all"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-2xl bg-[#007AFF] text-white flex items-center justify-center shadow-xs shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-clay-primary text-white flex items-center justify-center shadow-clay-primary shrink-0">
                 <Mic className="w-5 h-5 stroke-[2.5]" />
               </div>
               <div className="min-w-0">
-                <h4 className="text-sm font-black text-[#1C1C1E]">
+                <h4 className="text-sm font-black text-clay-ink">
                   Спросить SilverCare голосом
                 </h4>
-                <p className="text-xs text-[#8E8E93] truncate">
+                <p className="text-xs text-clay-ink-soft truncate">
                   «Когда следующее лекарство?», «Что сделать сегодня?»
                 </p>
               </div>
             </div>
-            <span className="text-xs font-extrabold text-[#007AFF] shrink-0 ml-2">Спросить →</span>
+            <span className="text-xs font-extrabold text-clay-primary-ink shrink-0 ml-2">Спросить →</span>
           </div>
         </section>
 
@@ -238,35 +240,35 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         <section aria-labelledby="heading-flashcards-widget">
           <div
             onClick={onOpenFlashcards}
-            className="bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-black/[0.06] cursor-pointer hover:shadow-md transition-all active:scale-98 relative overflow-hidden group"
+            className="clay-tap bg-clay-surface rounded-clay-lg p-4 sm:p-5 shadow-clay-raised-sm cursor-pointer transition-all relative overflow-hidden group"
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-10 h-10 rounded-2xl bg-[#FF9500]/10 text-[#FF9500] flex items-center justify-center text-xl shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-clay-warning/12 text-clay-warning flex items-center justify-center text-xl shrink-0">
                   🗂️
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-base font-extrabold text-[#1C1C1E]">
+                  <h3 className="text-base font-extrabold text-clay-ink">
                     Флэш-карты для памяти
                   </h3>
-                  <p className="text-xs text-[#8E8E93]">
+                  <p className="text-xs text-clay-ink-soft">
                     3D карточки вопросов и ответов для ясности ума
                   </p>
                 </div>
               </div>
 
-              <div className="w-7 h-7 rounded-full bg-[#F2F2F7] flex items-center justify-center text-[#1C1C1E] shrink-0">
+              <div className="w-7 h-7 rounded-full bg-clay-surface-sunken flex items-center justify-center text-clay-ink shrink-0">
                 <ChevronRight className="w-4 h-4" />
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-black/[0.04]">
-              <div className="flex gap-1 text-[11px] font-medium text-[#8E8E93]">
-                <span className="bg-[#F2F2F7] px-2 py-0.5 rounded-md">💊 Лекарства</span>
-                <span className="bg-[#F2F2F7] px-2 py-0.5 rounded-md">🧠 Память</span>
-                <span className="bg-[#F2F2F7] px-2 py-0.5 rounded-md">🌿 Природа</span>
+            <div className="flex items-center justify-between pt-2 border-t border-black/[0.04] flex-wrap gap-y-1.5">
+              <div className="flex gap-1 text-xs font-medium text-clay-ink-soft flex-wrap">
+                <span className="bg-clay-surface-sunken px-2 py-0.5 rounded-md">💊 Лекарства</span>
+                <span className="bg-clay-surface-sunken px-2 py-0.5 rounded-md">🧠 Память</span>
+                <span className="bg-clay-surface-sunken px-2 py-0.5 rounded-md">🌿 Природа</span>
               </div>
-              <span className="text-xs font-bold text-[#007AFF]">Открыть →</span>
+              <span className="text-xs font-bold text-clay-primary-ink">Открыть →</span>
             </div>
           </div>
         </section>
@@ -274,10 +276,10 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         {/* SECTION 5: TODAY'S FULL MEDICATION LIST */}
         <section aria-labelledby="heading-today-list" className="space-y-2 pt-1">
           <div className="flex items-center justify-between px-1">
-            <h2 id="heading-today-list" className="text-lg font-black text-[#1C1C1E]">
+            <h2 id="heading-today-list" className="text-lg font-black text-clay-ink">
               Все приёмы на сегодня
             </h2>
-            <span className="text-xs font-bold text-[#8E8E93] bg-white px-2.5 py-1 rounded-full border border-black/[0.04] shadow-2xs">
+            <span className="text-xs font-bold text-clay-ink-soft bg-clay-surface px-2.5 py-1 rounded-full shadow-clay-raised-sm">
               {takenCount} из {totalCount} принято
             </span>
           </div>
@@ -288,7 +290,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
                 key={item.id}
                 item={item}
                 onSelect={onOpenAlarm}
-                snoozedUntilLabel={snoozeLabels[item.id]}
+                snoozedUntilLabel={snoozeInfo[item.id]?.label}
               />
             ))}
           </div>
@@ -296,7 +298,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
 
         {/* Medical disclaimer */}
         <footer className="pt-2 pb-4 text-center">
-          <p className="text-[11px] text-[#8E8E93]">
+          <p className="text-xs text-clay-ink-soft">
             SilverCare Safety Prototype • Забота о здоровье, памяти и близких
           </p>
         </footer>
