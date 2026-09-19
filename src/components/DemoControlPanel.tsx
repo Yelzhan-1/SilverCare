@@ -42,10 +42,10 @@ export const DemoControlPanel: React.FC<DemoControlPanelProps> = ({
 
   const handleSimulateEmergency = (seconds: number) => {
     audioAlarmService.triggerHaptic(50);
-    emergencyService.startCountdown(
+    void emergencyService.startCountdown(
       'missed_medication',
       { medicationName: 'Аспирин Кардио', reason: 'Истекло время приёма без подтверждения' },
-      seconds
+      seconds || 15
     );
     onClose();
   };

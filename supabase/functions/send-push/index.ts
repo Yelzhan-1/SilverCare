@@ -1,27 +1,59 @@
-// Supabase Edge Function: send-push
-// Handles standard Web Push delivery to browsers and PWA clients via VAPID keys.
+import { createClient } from 'npm:@supabase/supabase-js@2';
+import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
+import { configureVapid, sendWebPush } from '../_shared/webpush.ts';
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+interface SendPushBody {
+  title?: string;
+  body?: string;
+  url?: string;
+  tag?: string;
+}
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*' } });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { title, body, icon, tag } = await req.json();
-    console.log(`[Send Push] Delivering push: ${title}`);
-
-    return new Response(
-      JSON.stringify({ success: true, delivered: true }),
-      {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      }
+    const authHeader = req.headers.get('Authorization') ?? '';
+    const userClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
     );
+    const { data: userData, error: userError } = await userClient.auth.getUser();
+    if (userError || !userData.user) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
+    const payload = (await req.json()) as SendPushBody;
+    const title = payload.title || 'SilverCare';
+    const body = payload.body || 'Новое уведомление';
+
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { data: subs, error: subError } = await admin
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth, profile_id')
+      .eq('profile_id', userData.user.id);
+    if (subError) throw subError;
+
+    configureVapid();
+    let delivered = 0;
+    for (const sub of subs ?? []) {
+      try {
+        await sendWebPush(sub, { title, body, url: payload.url || '/', tag: payload.tag || 'silvercare' });
+        delivered += 1;
+      } catch (err) {
+        console.error('[send-push] failed', (err as Error).message);
+      }
+    }
+
+    return jsonResponse({ success: true, delivered, alreadyNotified: false });
   } catch (error) {
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return jsonResponse({ error: (error as Error).message }, 400);
   }
 });

@@ -129,8 +129,10 @@ export type EmergencyEventType =
 
 export type EmergencyEventStatus =
   | 'pending'
+  | 'created'
   | 'countdown'
   | 'cancelled'
+  | 'confirmed'
   | 'notified'
   | 'acknowledged'
   | 'resolved';

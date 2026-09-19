@@ -1,20 +1,10 @@
 import React from 'react';
-import {
-  AlertTriangle,
-  Phone,
-  MapPin,
-  Check,
-  ShieldCheck,
-  X,
-  Volume2,
-  HeartHandshake,
-} from 'lucide-react';
+import { AlertTriangle, Phone, Check, HeartHandshake } from 'lucide-react';
 import {
   emergencyService,
   EmergencyStateMachineState,
 } from '../../services/emergency/emergencyService';
 import { EmergencyEvent } from '../../types/silvercare';
-import { audioAlarmService } from '../../services/audioAlarmService';
 
 interface EmergencyModalProps {
   isOpen: boolean;
@@ -23,6 +13,8 @@ interface EmergencyModalProps {
   remainingSeconds: number;
   onClose: () => void;
   isCaregiverView?: boolean;
+  online?: boolean;
+  lastError?: string | null;
 }
 
 export const EmergencyModal: React.FC<EmergencyModalProps> = ({
@@ -32,12 +24,15 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   remainingSeconds,
   onClose,
   isCaregiverView = false,
+  online = true,
+  lastError = null,
 }) => {
   if (!isOpen && state === 'NORMAL') return null;
 
   const isCountdown = state === 'COUNTDOWN';
   const isAlerted = state === 'ALERT_CREATED' || state === 'CAREGIVER_NOTIFIED';
   const isAcknowledged = state === 'ACKNOWLEDGED';
+  const isOffline = state === 'OFFLINE' || !online;
 
   const formatSeconds = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -46,17 +41,21 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   };
 
   const handleImOkay = () => {
-    emergencyService.cancelEmergency();
+    void emergencyService.cancelEmergency();
     onClose();
   };
 
   const handleNeedHelp = () => {
-    emergencyService.triggerManualSos();
+    void emergencyService.triggerManualSos();
   };
 
-  const handleCaregiverAck = () => {
-    emergencyService.acknowledgeByCaregiver('Сын Алексей');
-  };
+  const title = isAlerted
+    ? 'Опекуну отправлено уведомление'
+    : isAcknowledged
+      ? 'Опекун видит эту тревогу'
+      : isOffline
+        ? 'Нет сети'
+        : 'Вы в порядке?';
 
   return (
     <div
@@ -65,108 +64,111 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
     >
       <div
         id="emergency-modal-container"
-        className="w-full max-w-lg bg-white rounded-[36px] shadow-2xl border-4 border-[#FF3B30] overflow-hidden flex flex-col p-6 sm:p-8 text-center animate-in zoom-in-95 duration-200"
+        className="w-full max-w-lg bg-clay-surface rounded-clay-xl shadow-clay-raised overflow-hidden flex flex-col p-6 sm:p-8 text-center"
       >
-        {/* Pulsing Warning Icon */}
-        <div className="w-24 h-24 rounded-full bg-[#FF3B30] text-white flex items-center justify-center mx-auto shadow-lg mb-4 animate-pulse">
+        <div className="w-24 h-24 rounded-full bg-clay-danger text-white flex items-center justify-center mx-auto shadow-clay-danger mb-4">
           <AlertTriangle className="w-14 h-14 stroke-[2.5]" />
         </div>
 
-        {/* Header Question */}
-        <h2 className="text-2xl sm:text-3xl font-black text-[#1C1C1E] tracking-tight mb-2">
-          {isAlerted
-            ? '🚨 Сигнал тревоги отправлен!'
-            : 'Вам нужна помощь?'}
-        </h2>
+        <h2 className="text-2xl sm:text-3xl font-black text-clay-ink tracking-tight mb-2">{title}</h2>
 
-        <p className="text-base font-semibold text-[#8E8E93] max-w-sm mx-auto mb-4">
+        <p className="text-base font-semibold text-clay-ink-soft max-w-sm mx-auto mb-4">
           {isAlerted
-            ? 'Уведомление отправлено вашему сыну Алексею. Он уже знает и связывается с вами.'
+            ? 'Запись сохранена. Если приложение опекуна открыто — он увидит тревогу сразу. Это не вызов скорой.'
             : isAcknowledged
-            ? 'Сын Алексей подтвердил, что занимается ситуацией.'
-            : 'Если всё в порядке, нажмите зелёную кнопку ниже.'}
+              ? 'Опекун подтвердил, что занимается ситуацией.'
+              : 'Если всё в порядке, нажмите зелёную кнопку. Если не ответите, опекун получит уведомление.'}
         </p>
 
-        {/* Giant Countdown during waiting phase */}
+        {(isOffline || lastError) && (
+          <div
+            role="alert"
+            className="mb-4 p-3 rounded-clay-md bg-clay-warning/15 text-clay-warning text-sm font-semibold"
+          >
+            {lastError || 'Нет сети — онлайн-уведомления недоступны.'}
+          </div>
+        )}
+
         {isCountdown && (
-          <div className="my-2 py-4 bg-[#FF3B30]/10 rounded-3xl border border-[#FF3B30]/20">
-            <span className="text-xs font-bold text-[#FF3B30] uppercase tracking-wider block mb-1">
-              Таймер проверки безопасности
+          <div className="my-2 py-4 bg-clay-danger/10 rounded-clay-lg">
+            <span className="text-xs font-bold text-clay-danger uppercase tracking-wider block mb-1">
+              Таймер проверки
             </span>
-            <span className="text-6xl sm:text-7xl font-black text-[#FF3B30] font-mono tracking-tighter">
+            <span className="text-6xl sm:text-7xl font-black text-clay-danger font-mono tracking-tighter">
               {formatSeconds(remainingSeconds)}
             </span>
-            <span className="text-xs text-[#8E8E93] block mt-2">
-              Если вы не ответите, мы автоматически оповестим близких.
+            <span className="text-xs text-clay-ink-soft block mt-2">
+              Без ответа опекун получит уведомление автоматически
             </span>
           </div>
         )}
 
-        {/* Action Buttons for Elderly Person */}
         {!isCaregiverView && (
           <div className="space-y-3 pt-3">
             <button
+              type="button"
               id="btn-im-fine"
               onClick={handleImOkay}
-              className="w-full min-h-[96px] bg-[#34C759] hover:bg-emerald-600 active:scale-98 text-white font-black text-xl sm:text-2xl rounded-3xl flex items-center justify-center gap-3 shadow-lg transition-all cursor-pointer"
+              className="clay-tap w-full min-h-[96px] bg-clay-success hover:brightness-105 text-white font-black text-xl sm:text-2xl rounded-clay-lg flex items-center justify-center gap-3 shadow-clay-success cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-primary"
             >
               <Check className="w-9 h-9 stroke-[3.5]" />
-              <span>ДА, Я В ПОРЯДКЕ</span>
+              <span>Я В ПОРЯДКЕ</span>
             </button>
 
             <button
+              type="button"
               id="btn-need-help"
               onClick={handleNeedHelp}
-              className="w-full min-h-[80px] bg-[#FF3B30] hover:bg-red-600 active:scale-98 text-white font-black text-lg sm:text-xl rounded-3xl flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+              className="clay-tap w-full min-h-[80px] bg-clay-danger hover:brightness-105 text-white font-black text-lg sm:text-xl rounded-clay-lg flex items-center justify-center gap-2 shadow-clay-danger cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-primary"
             >
               <AlertTriangle className="w-6 h-6 stroke-[3]" />
-              <span>🆘 МНЕ НУЖНА ПОМОЩЬ</span>
+              <span>НУЖНА ПОМОЩЬ</span>
             </button>
           </div>
         )}
 
-        {/* Action Buttons for Caregiver View */}
         {isCaregiverView && (
           <div className="space-y-3 pt-3">
             {!isAcknowledged ? (
               <button
-                onClick={handleCaregiverAck}
-                className="w-full min-h-[80px] bg-[#007AFF] hover:bg-blue-600 text-white font-black text-lg rounded-2xl flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                type="button"
+                onClick={() => void emergencyService.acknowledgeByCaregiver()}
+                className="clay-tap w-full min-h-[80px] bg-clay-primary hover:brightness-105 text-white font-black text-lg rounded-clay-md flex items-center justify-center gap-2 shadow-clay-primary cursor-pointer"
               >
                 <HeartHandshake className="w-6 h-6" />
-                <span>Я УЖЕ ПРОВЕРЯЮ (ПОДТВЕРДИТЬ)</span>
+                <span>Я УЖЕ ПРОВЕРЯЮ</span>
               </button>
             ) : (
-              <div className="p-3 bg-[#34C759]/15 text-[#34C759] font-bold rounded-2xl text-center">
-                ✓ Вы подтвердили, что занимаетесь ситуацией
+              <div className="p-3 bg-clay-success/15 text-clay-success font-bold rounded-clay-md text-center">
+                Вы подтвердили, что занимаетесь ситуацией
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2">
-              <a
-                href="tel:+77015550192"
-                className="h-14 bg-black text-white font-bold text-base rounded-2xl flex items-center justify-center gap-2"
-              >
-                <Phone className="w-5 h-5" />
-                <span>Позвонить</span>
-              </a>
+            <a
+              href="tel:+77015550192"
+              className="h-14 min-h-11 bg-clay-ink text-white font-bold text-base rounded-clay-md flex items-center justify-center gap-2"
+            >
+              <Phone className="w-5 h-5" />
+              <span>Позвонить подопечному</span>
+            </a>
 
-              <button
-                onClick={onClose}
-                className="h-14 bg-[#F2F2F7] hover:bg-[#E5E5EA] text-[#1C1C1E] font-bold text-base rounded-2xl flex items-center justify-center gap-2"
-              >
-                <MapPin className="w-5 h-5 text-[#007AFF]" />
-                <span>Маршрут</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full h-12 min-h-11 bg-clay-surface-sunken text-clay-ink font-bold rounded-clay-md"
+            >
+              Закрыть
+            </button>
           </div>
         )}
 
-        <div className="pt-4 text-center">
-          <p className="text-[11px] text-[#8E8E93]">
-            SilverCare Safety Prototype • Не заменяет официальные экстренные службы
-          </p>
-        </div>
+        {event?.id && (
+          <p className="pt-3 text-[11px] text-clay-ink-soft font-mono break-all">id: {event.id}</p>
+        )}
+
+        <p className="pt-3 text-[11px] text-clay-ink-soft">
+          SilverCare не заменяет официальные экстренные службы
+        </p>
       </div>
     </div>
   );

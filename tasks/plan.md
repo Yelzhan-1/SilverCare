@@ -14,10 +14,10 @@
 | Один главный экран, без телефон-рамки и нижних табов | ✅ |
 | Sticky 1-клик «Я принял», snooze с persist ringAt | ✅ (есть долг CodeRabbit: очередь alarm) |
 | Clayomorphism токены + частичный redesign | 🟡 частично (Today/Alarm/плитки); полный product redesign ещё нужен |
-| Emergency countdown UI (локальный emergencyService) | 🟡 UI есть, **не** проходит через backend/push |
-| Supabase schema + Edge stubs | 🟡 миграции есть; send-push/emergency-alert = fake success |
+| Emergency countdown UI (локальный emergencyService) | ✅ 15с, RPC + Edge, без fake localStorage |
+| Supabase schema + Edge stubs | ✅ send-push / emergency-alert — реальный Web Push |
 | Аккаунты Elderly/Guardian + invite | ✅ Sprint A: email+пароль, роли, `family_links` по коду |
-| Realtime + Web Push на 2 устройствах | ❌ |
+| Realtime + Web Push на 2 устройствах | ✅ Sprint B+C |
 | Memory pair game по ТЗ (сложность/таймер/пары) | ❌ (есть другие memory-модалки) |
 | Fall / night breathing / medication escalation levels | ❌ |
 
@@ -40,7 +40,7 @@
 - Email + пароль, один экран онбординга роли (без Face ID как обязательного шага).
 - Acceptance: 2 браузера, 2 аккаунта, связь по коду; без связи нет чужих данных.
 
-### Sprint B — Alert engine backend (P1 ядро)
+### Sprint B — Alert engine backend (P1 ядро) ✅ (fast-track с C)
 - Таблицы/статусы: CREATED → COUNTDOWN → CANCELLED | CONFIRMED → NOTIFIED → ACKNOWLEDGED → RESOLVED.
 - Типы: MANUAL_EMERGENCY, MISSED_MEDICATION, FALL_DETECTED (stub-ready), INACTIVITY, … 
 - API/Edge: create, cancel, confirm, escalate; idempotency по alert_id.
@@ -48,7 +48,7 @@
 - Offline честно: «нет сети, онлайн-уведомления недоступны»; различать local vs server-ack.
 - Acceptance: без cancel → статус CONFIRMED в DB; повторный POST не шлёт 5 нотификаций.
 
-### Sprint C — Realtime + Web Push (P1 демо для жюри)
+### Sprint C — Realtime + Web Push (P1 демо для жюри) ✅ (fast-track с B)
 - Realtime подписка guardian на alerts своего elderly.
 - Push: permission → subscription → push_subscriptions; Edge send-push с **реальным** web-push + VAPID (private только server).
 - Guardian UI: экран тревоги + история; кнопки открыть / позвонить (tel:).
@@ -96,4 +96,9 @@ Vite/React/Tailwind (есть) + Supabase Auth/DB/Realtime/Edge Functions + Web 
 
 ## Design mandate (user)
 Sprint E redesign MUST browse and apply patterns from: Refero styles, https://21st.dev, https://reactbits.dev (clay/soft UI + senior-friendly). Do not redesign from memory alone.
+
+
+
+## Fast track (2026-09-20)
+User asked to finish faster + final quick review. Order: merge PR3 → B+C combined → optional D/F → final §33 review. Defer G and deep E until after demo path works. Design sites (Refero/21st/reactbits) still mandatory when E runs.
 
