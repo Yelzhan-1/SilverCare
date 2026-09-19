@@ -18,8 +18,8 @@
 | Supabase schema + Edge stubs | ✅ send-push / emergency-alert — реальный Web Push |
 | Аккаунты Elderly/Guardian + invite | ✅ Sprint A: email+пароль, роли, `family_links` по коду |
 | Realtime + Web Push на 2 устройствах | ✅ Sprint B+C |
-| Memory pair game по ТЗ (сложность/таймер/пары) | ❌ (есть другие memory-модалки) |
-| Fall / night breathing / medication escalation levels | ❌ |
+| Memory pair game по ТЗ (сложность/таймер/пары) | ✅ Sprint F |
+| Fall / night / medication escalation | ✅ Sprint D+G |
 
 ## Конфликты и как решаем
 
@@ -55,25 +55,26 @@
 - Demo script: Device A elderly SOS → countdown → timeout → Device B push + realtime.
 - Acceptance: **12 пунктов §33** проходят на двух реальных устройствах (Android Chrome обязательно).
 
-### Sprint D — Medication escalation (P2)
+### Sprint D — Medication escalation (P2) ✅
 - После reminder: Принял / Позже; без ответа → warning → опционально alert по severity LOW/MEDIUM/HIGH.
 - Sync intakes через DB (не только localStorage).
 
-### Sprint E — Product redesign dashboard (P2 + §2–3)
+### Sprint E — Product redesign dashboard (P2 + §2–3) ✅
 - Dashboard elderly: приветствие, статус «всё в порядке», карточки Лекарства / SOS / Память / Состояние.
 - Guardian dashboard: статус, пропуски, история тревог.
 - Единый стиль: calm/minimal/professional + accessibility; продолжить DESIGN.md clay без градиент-спама.
 
-### Sprint F — Memory card game (P3 + §1)
+### Sprint F — Memory card game (P3 + §1) ✅
 - Парные карты: easy 3 / mid 6 / hard 8–10 пар; счёт пар/попыток/таймер; restart; end screen; категории.
 - Крупные карты, высокий контраст; результаты в game_results / memory_*.
 
-### Sprint G — Sensors (P2, осторожно)
+### Sprint G — Sensors (P2, осторожно) ✅
 - Fall: DeviceMotion + threshold/debounce/cooldown + permission; иначе «недоступно».
 - Night monitoring: architecture + honest copy; detection-модуль pluggable, без меддиагноза.
 - Не блокирует демо, если A–C готовы.
 
-### Sprint H — Ship
+### Sprint H — Ship 🟡
+- Snooze ingAt/originalDate уже в коде; README/CI ✅; остался точечный CodeRabbit polish по желанию.
 - Закрыть CodeRabbit snooze-queue.
 - README: два устройства, VAPID, Supabase.
 - PR + CI + CodeRabbit; demo checklist для жюри.

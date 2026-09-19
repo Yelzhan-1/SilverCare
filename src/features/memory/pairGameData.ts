@@ -9,7 +9,7 @@ export interface PairCategory {
 export const PAIR_COUNTS: Record<PairDifficulty, number> = {
   easy: 3,
   medium: 6,
-  hard: 8,
+  hard: 10,
 };
 
 export const PAIR_CATEGORIES: PairCategory[] = [
