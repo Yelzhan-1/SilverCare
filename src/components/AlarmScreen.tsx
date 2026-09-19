@@ -1,0 +1,260 @@
+import React, { useEffect, useState, useRef } from 'react';
+import { Volume2, Check, AlertCircle, Bird, Bell, Mic } from 'lucide-react';
+import { TodayScheduleItem } from '../types/medication';
+import { MedicationVisual } from './MedicationVisual';
+import { speechService } from '../services/speechService';
+import { audioAlarmService } from '../services/audioAlarmService';
+import { storageService } from '../services/storageService';
+
+interface AlarmScreenProps {
+  item: TodayScheduleItem;
+  userName?: string;
+  userAvatarUrl?: string;
+  onConfirmTaken: (item: TodayScheduleItem) => void;
+  onDismiss: () => void;
+}
+
+export const AlarmScreen: React.FC<AlarmScreenProps> = ({
+  item,
+  userName = 'Анна Ивановна',
+  userAvatarUrl,
+  onConfirmTaken,
+  onDismiss,
+}) => {
+  const [isSuccessState, setIsSuccessState] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const hasAnnouncedRef = useRef(false);
+
+  const profile = storageService.getUserProfile();
+  const soundType = profile.alarmSoundType || 'birds';
+  const customAudioUrl = item.customAudioUrl || profile.customVoiceAudioUrl;
+  const customVoiceText = item.customVoiceText || profile.customVoiceText;
+
+  // Trigger sound alarm & voice announcement when alert mounts
+  useEffect(() => {
+    // 1. Start pleasant birdsong or chime audio loop
+    audioAlarmService.startAlarmLoop(soundType);
+
+    // 2. Play custom voice recording or Russian speech announcement
+    const timer = setTimeout(() => {
+      if (!hasAnnouncedRef.current) {
+        hasAnnouncedRef.current = true;
+        playVoiceMessage();
+      }
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+      audioAlarmService.stopAlarmLoop();
+      speechService.stop();
+    };
+  }, [soundType, customAudioUrl, customVoiceText, item.name, item.dosage, userName]);
+
+  const playVoiceMessage = () => {
+    setIsSpeaking(true);
+
+    if (customAudioUrl) {
+      // Play user's recorded audio voice
+      audioAlarmService.playCustomAudio(customAudioUrl).then(() => {
+        setIsSpeaking(false);
+      });
+    } else {
+      // Speak custom or default text via TTS
+      const textToSpeak = customVoiceText
+        ? `${customVoiceText}. ${item.name}, ${item.dosage}.`
+        : `${userName ? `${userName}, время` : 'Время'} принять лекарство. ${item.name}. ${item.dosage}.`;
+
+      speechService.speak(textToSpeak).then(() => {
+        setIsSpeaking(false);
+      });
+    }
+  };
+
+  // Re-listen / speak again button handler
+  const handleReplayVoice = () => {
+    audioAlarmService.triggerHaptic(60);
+    playVoiceMessage();
+  };
+
+  // ONE-CLICK CONFIRMATION
+  const handleOneClickConfirm = () => {
+    // Stop sound and voice immediately
+    audioAlarmService.stopAlarmLoop();
+    speechService.stop();
+
+    // Play pleasant success chord
+    audioAlarmService.playSuccessChime();
+
+    // Enter visual celebration state
+    setIsSuccessState(true);
+
+    // Wait ~1.2s to show clear visual satisfaction, then trigger flow (save & memory game)
+    setTimeout(() => {
+      onConfirmTaken(item);
+    }, 1200);
+  };
+
+  // SUCCESS ANIMATION OVERLAY
+  if (isSuccessState) {
+    return (
+      <div
+        id="alarm-success-screen"
+        className="fixed inset-0 z-50 bg-[#34C759] text-white flex flex-col items-center justify-center p-6 select-none animate-in fade-in duration-300 font-sans"
+      >
+        <div className="flex flex-col items-center text-center max-w-md mx-auto">
+          {/* Pulsing checkmark icon */}
+          <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-white text-[#34C759] flex items-center justify-center shadow-xl mb-6 animate-bounce">
+            <Check className="w-16 h-16 sm:w-20 sm:h-20 stroke-[3.5]" />
+          </div>
+
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2 font-sans">
+            Лекарство принято
+          </h2>
+
+          <p className="text-xl sm:text-2xl text-white/90 font-bold mb-1">
+            {item.name}
+          </p>
+
+          <p className="text-base text-white/80 font-medium">
+            {item.dosage} • Записано в график здоровья
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      id="medication-alarm-modal"
+      className="fixed inset-0 z-50 bg-black/80 ios-blur flex flex-col justify-between p-4 sm:p-6 select-none overflow-y-auto font-sans"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="alarm-heading"
+    >
+      {/* Top Banner Alert Bar in iOS Dynamic Island style */}
+      <div className="w-full max-w-md mx-auto pt-3 sm:pt-4">
+        <div className="bg-white/10 backdrop-blur-xl text-white py-2.5 px-5 rounded-full flex items-center justify-between border border-white/15 shadow-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[#FF3B30] animate-ping" />
+            <span
+              id="alarm-heading"
+              className="text-xs sm:text-sm font-semibold tracking-wide"
+            >
+              ВРЕМЯ ПРИНЯТЬ ЛЕКАРСТВО
+            </span>
+          </div>
+
+          {/* Sound Type Badge */}
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-white/15 rounded-full text-xs font-medium text-white/90">
+            {soundType === 'birds' ? (
+              <>
+                <Bird className="w-3.5 h-3.5 text-[#34C759]" />
+                <span>Пение птиц</span>
+              </>
+            ) : (
+              <>
+                <Bell className="w-3.5 h-3.5 text-amber-300" />
+                <span>Звуковой сигнал</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Center Main Info Card in Apple Card Style */}
+      <div className="w-full max-w-md mx-auto my-auto bg-white rounded-[32px] p-6 sm:p-7 shadow-2xl border border-black/[0.06] text-center flex flex-col items-center">
+        {/* User identification badge */}
+        {userName && (
+          <div className="inline-flex items-center gap-2 bg-[#F2F2F7] px-3 py-1 rounded-full mb-3">
+            {userAvatarUrl ? (
+              <img
+                src={userAvatarUrl}
+                alt={userName}
+                className="w-5 h-5 rounded-full object-cover"
+              />
+            ) : null}
+            <span className="text-xs font-semibold text-[#8E8E93]">
+              Для: {userName}
+            </span>
+          </div>
+        )}
+
+        {/* Scheduled Time Display */}
+        <div className="text-4xl sm:text-5xl font-black text-[#1C1C1E] tracking-tight mb-2 font-sans">
+          {item.time}
+        </div>
+
+        {/* Medicine Visual */}
+        <div className="my-2 p-3 bg-[#F2F2F7] rounded-3xl border border-black/[0.04]">
+          <MedicationVisual
+            preset={item.photoPreset}
+            customUrl={item.customPhotoUrl}
+            size="xl"
+          />
+        </div>
+
+        {/* Medication Name */}
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-[#1C1C1E] tracking-tight mt-3 mb-1 break-words font-sans">
+          {item.name}
+        </h1>
+
+        {/* Dosage */}
+        <div className="text-base sm:text-lg font-semibold text-[#007AFF] bg-[#007AFF]/10 px-4 py-1 rounded-full mt-1">
+          {item.dosage}
+        </div>
+
+        {/* Specific instruction if available */}
+        {item.instructions && (
+          <p className="text-sm font-normal text-[#8E8E93] mt-3 max-w-sm">
+            {item.instructions}
+          </p>
+        )}
+
+        {/* Voice Announcement Badge */}
+        {customAudioUrl ? (
+          <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-[#FF2D55]/10 text-[#FF2D55] font-semibold text-xs">
+            <Mic className="w-3.5 h-3.5" />
+            <span>Звучит живой голос близких</span>
+          </div>
+        ) : null}
+
+        {/* Secondary Button: Re-speak Voice Announcement */}
+        <button
+          id="btn-replay-voice"
+          onClick={handleReplayVoice}
+          className={`mt-5 w-full h-12 bg-[#F2F2F7] hover:bg-[#E5E5EA] active:opacity-70 text-[#1C1C1E] text-sm font-semibold rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            isSpeaking ? 'ring-2 ring-[#007AFF] bg-[#007AFF]/10 text-[#007AFF]' : ''
+          }`}
+          aria-label="Прослушать голосовое напоминание ещё раз"
+        >
+          <Volume2 className={`w-5 h-5 text-[#007AFF] ${isSpeaking ? 'animate-pulse' : ''}`} />
+          <span>{isSpeaking ? 'Голос звучит...' : 'Прослушать голос ещё раз'}</span>
+        </button>
+      </div>
+
+      {/* Bottom Area: Primary Confirm Button */}
+      <div className="w-full max-w-md mx-auto pb-4 sm:pb-6 pt-2 flex flex-col gap-2">
+        <button
+          id="btn-confirm-taken"
+          onClick={handleOneClickConfirm}
+          className="w-full h-18 min-h-[72px] bg-[#34C759] hover:bg-[#30B750] active:scale-[0.98] text-white text-2xl font-bold rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all cursor-pointer"
+          aria-label="Я принял лекарство, остановить будильник"
+        >
+          <div className="w-10 h-10 rounded-full bg-white text-[#34C759] flex items-center justify-center shrink-0 shadow-xs">
+            <Check className="w-7 h-7 stroke-[3]" />
+          </div>
+          <span>Я принял</span>
+        </button>
+
+        {/* Dismiss button */}
+        <button
+          id="btn-postpone-alarm"
+          onClick={onDismiss}
+          className="text-white/70 hover:text-white text-sm font-medium py-2 text-center cursor-pointer"
+        >
+          Отложить на 5 минут / закрыть
+        </button>
+      </div>
+    </div>
+  );
+};

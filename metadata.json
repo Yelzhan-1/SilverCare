@@ -1,0 +1,11 @@
+{
+  "name": "SilverCare",
+  "description": "Medication reminders made simple for elderly users with one-click confirmation, voice alerts, high contrast UI, and memory exercises.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
