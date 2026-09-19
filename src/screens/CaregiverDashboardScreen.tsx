@@ -11,7 +11,6 @@ import {
   Phone,
   Plus,
   Mic,
-  QrCode,
   Sparkles,
   ArrowLeft,
   ChevronRight,
@@ -35,6 +34,8 @@ import { notificationService } from '../services/notifications/notificationServi
 import { audioAlarmService } from '../services/audioAlarmService';
 import { speechService } from '../services/speechService';
 import { TimeInput24 } from '../components/TimeInput24';
+import { authRepository, LinkedElderInfo } from '../repositories/authRepository';
+import { AlertCircle, Check, Link2 } from 'lucide-react';
 
 export interface CaregiverDashboardScreenProps {
   onSwitchToElderMode?: () => void;
@@ -42,6 +43,8 @@ export interface CaregiverDashboardScreenProps {
   onOpenDemoMenu?: () => void;
   onOpenSettings?: () => void;
   onTriggerDemoAlarm?: () => void;
+  /** Supabase auth user id of the signed-in caregiver (Sprint A real pairing). */
+  userId?: string;
 }
 
 export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> = ({
@@ -50,6 +53,7 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
   onOpenDemoMenu,
   onOpenSettings,
   onTriggerDemoAlarm,
+  userId,
 }) => {
   const handleGoBack = () => {
     if (onBackToElderly) onBackToElderly();
@@ -170,6 +174,11 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
       </header>
 
       <main className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4">
+        {/* REAL ACCOUNT PAIRING (Sprint A): shows the linked elder from the
+            database, or lets the caregiver redeem an invite code right here
+            if they skipped this step during onboarding. */}
+        {userId && <LinkedElderCard userId={userId} />}
+
         {/* ELDER STATUS HERO CARD */}
         <section className="bg-white rounded-[32px] p-5 sm:p-6 shadow-xs border border-black/[0.06] space-y-4">
           <div className="flex items-start justify-between">
@@ -375,28 +384,6 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
           </div>
         </section>
 
-        {/* DEVICE LINK CODE / QR */}
-        <section className="bg-white rounded-[32px] p-5 shadow-xs border border-black/[0.06] space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <QrCode className="w-5 h-5 text-[#8E8E93]" />
-              <h3 className="text-base font-extrabold text-[#1C1C1E]">
-                Связь с устройством подопечного
-              </h3>
-            </div>
-            <span className="text-xs font-bold text-[#34C759]">🟢 Активна</span>
-          </div>
-
-          <div className="p-4 bg-[#F2F2F7] rounded-2xl flex items-center justify-between">
-            <div>
-              <span className="text-xs text-[#8E8E93] font-medium">Код связи:</span>
-              <p className="text-xl font-mono font-black text-[#1C1C1E]">SC-48291</p>
-            </div>
-            <span className="text-xs text-[#007AFF] font-bold bg-[#007AFF]/10 px-3 py-1 rounded-full">
-              ID: SC-ELDER-8F42A1
-            </span>
-          </div>
-        </section>
       </main>
 
       {/* ADD MEDICATION MODAL */}
@@ -473,5 +460,143 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
         </div>
       )}
     </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// LinkedElderCard — Sprint A real DB-backed pairing status/entry point.
+// Kept as a small, self-contained addition rather than a redesign of the
+// (still demo/localStorage-driven) dashboard above.
+// ---------------------------------------------------------------------------
+
+const LinkedElderCard: React.FC<{ userId: string }> = ({ userId }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [caregiverProfileId, setCaregiverProfileId] = useState<string | null>(null);
+  const [linkedElder, setLinkedElder] = useState<LinkedElderInfo | null>(null);
+  const [code, setCode] = useState('');
+  const [isLinking, setIsLinking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = async () => {
+    setIsLoading(true);
+    try {
+      const caregiverProfile = await authRepository.getMyCaregiverProfile(userId);
+      setCaregiverProfileId(caregiverProfile?.id ?? null);
+      if (caregiverProfile) {
+        const elder = await authRepository.getLinkedElderForCaregiver(caregiverProfile.id);
+        setLinkedElder(elder);
+      }
+    } catch (err) {
+      console.warn('Failed to load family link status', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const handleConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!code.trim()) {
+      setError('Введите код приглашения.');
+      return;
+    }
+    setIsLinking(true);
+    try {
+      const elderName = await authRepository.acceptInviteCode(code);
+      setLinkedElder({ elderlyProfileId: '', displayName: elderName });
+      setCode('');
+      refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Код не найден или уже использован. Проверьте код у подопечного.'
+      );
+    } finally {
+      setIsLinking(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <section className="bg-clay-surface rounded-clay-lg p-4 shadow-clay-raised-sm">
+        <p className="text-sm text-clay-ink-soft font-semibold">Проверяем связь с подопечным…</p>
+      </section>
+    );
+  }
+
+  if (!caregiverProfileId) {
+    // Shouldn't normally happen (created together with the profile during
+    // onboarding), but fail safe rather than crash the dashboard.
+    return null;
+  }
+
+  if (linkedElder) {
+    return (
+      <section
+        id="linked-elder-card"
+        className="bg-clay-success/10 rounded-clay-lg p-4 shadow-clay-raised-sm flex items-center gap-3"
+      >
+        <div className="w-11 h-11 rounded-2xl bg-clay-success text-white flex items-center justify-center shrink-0">
+          <Check className="w-5 h-5 stroke-[3]" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="text-sm font-black text-clay-ink">Вы связаны с {linkedElder.displayName}</h3>
+          <p className="text-xs text-clay-ink-soft font-semibold">Доступ к её данным подтверждён</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      id="caregiver-link-entry"
+      className="bg-clay-surface rounded-clay-lg p-4 shadow-clay-raised-sm space-y-3"
+    >
+      <div className="flex items-center gap-2">
+        <div className="w-9 h-9 rounded-xl bg-clay-primary/10 text-clay-primary flex items-center justify-center shrink-0">
+          <Link2 className="w-4.5 h-4.5" />
+        </div>
+        <div>
+          <h3 className="text-sm font-black text-clay-ink">Вы ещё не подключены</h3>
+          <p className="text-xs text-clay-ink-soft font-semibold">
+            Введите код, который вам дал подопечный
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleConnect} className="flex gap-2">
+        <input
+          id="caregiver-dashboard-invite-code"
+          type="text"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="Код приглашения"
+          className="flex-1 h-11 px-3.5 text-base font-bold tracking-wider text-center uppercase rounded-xl bg-clay-surface-sunken text-clay-ink focus:outline-none focus:ring-2 focus:ring-clay-primary/30 border border-black/[0.04]"
+        />
+        <button
+          type="submit"
+          disabled={isLinking}
+          className="clay-tap h-11 px-4 bg-clay-primary hover:brightness-105 disabled:opacity-60 text-white font-bold text-sm rounded-xl shadow-clay-primary transition-all cursor-pointer shrink-0"
+        >
+          {isLinking ? '…' : 'Подключиться'}
+        </button>
+      </form>
+
+      {error && (
+        <div
+          role="alert"
+          className="p-2.5 rounded-xl bg-clay-danger/10 text-clay-danger text-xs font-semibold flex items-start gap-1.5"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+    </section>
   );
 };

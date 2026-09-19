@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+.env
+.env.local
+
+# Scratch export of migration files (duplicates supabase/migrations/)
+_mig_export/
+

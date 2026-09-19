@@ -1,86 +1,99 @@
-﻿# SilverCare — план работ (хакатон)
+# SilverCare — план по ТЗ (обновлено 2026-09-20)
 
-Обновлено: 2026-09-19 (Asia/Almaty)
+Источник: полное ТЗ на доработку + текущий main (после PR #1 и #2).
 
-> **Статус:** Волна 0 (CodeRabbit/QA долг) и Волна 1 (Claymorphism design system) —
-> сделаны в PR `feat/claymorphism-wave0-wave1`. Детали токенов см. `DESIGN.md`.
-> Следующая — Волна 2 (парные карточки памяти).
+## Принцип ТЗ (не нарушать)
 
-## Источники требований (не путать)
+Любое важное действие: Frontend → Backend → Database → Realtime + Push → другое устройство.
+Запрещены: fake push/realtime, только localStorage между девайсами, hardcoded guardian, «скорая вызвана» без API, меддиагнозы, VAPID private key во frontend.
 
-1. **Кейс организаторов:** один главный экран; крупные кнопки; без вкладок/сайдбара; без сложной регистрации; 1-клик подтверждение приёма; цель 0% пропусков; звук + память.
-2. **Команда (новые):** claymorphism-дизайн (не вайбкодер); табы убрать; РЕАЛЬНЫЙ SOS→push опекуну + кросс-девайс/БД; игра «парные карточки» как на референсе Алишки.
-3. **Уже сделано (PR #1):** sticky confirm, честный snooze, HH:MM, RU media errors, soft memory banner, без MobileFrame и нижнего dock, CI+CodeRabbit.
-4. **CodeRabbit (долг):** midnight snooze date, persist ringAt, countdown от ringAt, a11y TimeInput24, wrap баннера/формы/RoleSwitcher.
+## Что уже есть в main
 
-## Принципы
+| Область | Статус |
+|---|---|
+| Один главный экран, без телефон-рамки и нижних табов | ✅ |
+| Sticky 1-клик «Я принял», snooze с persist ringAt | ✅ (есть долг CodeRabbit: очередь alarm) |
+| Clayomorphism токены + частичный redesign | 🟡 частично (Today/Alarm/плитки); полный product redesign ещё нужен |
+| Emergency countdown UI (локальный emergencyService) | 🟡 UI есть, **не** проходит через backend/push |
+| Supabase schema + Edge stubs | 🟡 миграции есть; send-push/emergency-alert = fake success |
+| Аккаунты Elderly/Guardian + invite | ✅ Sprint A: email+пароль, роли, `family_links` по коду |
+| Realtime + Web Push на 2 устройствах | ❌ |
+| Memory pair game по ТЗ (сложность/таймер/пары) | ❌ (есть другие memory-модалки) |
+| Fall / night breathing / medication escalation levels | ❌ |
 
-- Пожилой: **без регистрации**, сразу главный экран.
-- Опекун: связка по **invite-коду / простому PIN**, не email-пароль (кейс запрещает сложную регистрацию).
-- Один главный экран с крупными кнопками/плитками; настройки/опекун — за дискретным «Ещё».
-- Дизайн: Clayomorphism + референсы Refero / 21st.dev / reactbits.dev; WCAG контраст для пожилых.
-- Стек: Vite+React+Tailwind; **Supabase** (Postgres+RLS+Realtime+Edge Functions+Web Push VAPID); офлайн-кэш localStorage как fallback.
-- Код через **Cursor Claude Sonnet**; после плана — PR; ждать CI+CodeRabbit.
+## Конфликты и как решаем
 
-## Что уже есть в репо (фундамент)
+1. **Кейс хакатона «без сложной регистрации»** vs ТЗ «аккаунты».  
+   Решение: лёгкий auth (magic link / PIN / invite-код), пожилой почти сразу на главную; без тяжёлого multi-step signup.
+2. В ТЗ **игра в §1**, но в §32 она **PRIORITY 3**.  
+   Решение: после P1 emergency demo, не раньше.
+3. **Full redesign** в §2 «главный», в §32 — PRIORITY 2.  
+   Решение: не блокировать P1; polish UI поверх работающего backend-flow; продолжить clay, убрать vibe-шум.
+4. Fall / night breathing — только с честными disclaimers и feature-detect; иначе architecture hooks, не симуляция «медицины».
 
-- `supabase/migrations/*` — profiles, family_links, medications, emergency_*, push_subscriptions…
-- Edge stubs: `send-push`, `emergency-alert`, `family-notification` — **сейчас fake success**, нужна реальная отправка.
-- UI: `EmergencyModal` + `emergencyService` countdown; `MemorySuiteModal` / `MemoryGame` — нужно добавить режим **парных карточек** как на скрине.
+## Быстрый точный план (спринты)
 
-## Волны (порядок)
+### Sprint A — Foundation auth + pairing (P1 основа) ✅
+- `@supabase/supabase-js`, `src/lib/supabaseClient.ts`, RLS 004–005 применены.
+- Roles: elderly | caregiver (`profiles` + sub-profiles + `family_links`).
+- Invite-код 7 символов → RPC `accept_family_invite` → `status=active`.
+- Email + пароль, один экран онбординга роли (без Face ID как обязательного шага).
+- Acceptance: 2 браузера, 2 аккаунта, связь по коду; без связи нет чужих данных.
 
-### Волна 0 — выравнивание (коротко)
-- Подтянуть `main`, почистить остатки табов если всплывут.
-- Закрыть CodeRabbit notes (snooze/ringAt/a11y/layout).
-- Acceptance: lint/build green; snooze переживает полночь и reload.
+### Sprint B — Alert engine backend (P1 ядро)
+- Таблицы/статусы: CREATED → COUNTDOWN → CANCELLED | CONFIRMED → NOTIFIED → ACKNOWLEDGED → RESOLVED.
+- Типы: MANUAL_EMERGENCY, MISSED_MEDICATION, FALL_DETECTED (stub-ready), INACTIVITY, … 
+- API/Edge: create, cancel, confirm, escalate; idempotency по alert_id.
+- Countdown UI на elderly: «Вы в порядке?» / «Нужна помощь» / таймер; cancel/confirm пишут в backend.
+- Offline честно: «нет сети, онлайн-уведомления недоступны»; различать local vs server-ack.
+- Acceptance: без cancel → статус CONFIRMED в DB; повторный POST не шлёт 5 нотификаций.
 
-### Волна 1 — Design system Clayomorphism
-- `DESIGN.md` токены (цвета, тени «глина», радиусы, типографика senior-large).
-- Референсы: 21st.dev (clay cards/buttons), reactbits.dev (soft 3D), Refero (senior health apps).
-- Перекрасить главный экран, alarm, плитки Память/SOS, memory modal — единый стиль, не generic AI UI.
-- Acceptance: desktop+mobile скрины; контраст AA; hit-area кнопок крупные; нет «вайбкодерского» градиент-спама.
+### Sprint C — Realtime + Web Push (P1 демо для жюри)
+- Realtime подписка guardian на alerts своего elderly.
+- Push: permission → subscription → push_subscriptions; Edge send-push с **реальным** web-push + VAPID (private только server).
+- Guardian UI: экран тревоги + история; кнопки открыть / позвонить (tel:).
+- Demo script: Device A elderly SOS → countdown → timeout → Device B push + realtime.
+- Acceptance: **12 пунктов §33** проходят на двух реальных устройствах (Android Chrome обязательно).
 
-### Волна 2 — Парные карточки (референс Алишки)
-- Экран/модалка: «ТРЕНИРОВКА ПАМЯТИ» / «ПАРНЫЕ КАРТОЧКИ»; сетка 2×4; рубашка «?» тёмно-зелёная; пары emoji/картинки; «Завершить».
-- Доступ с главной плитки «Память» (не вкладка).
-- Acceptance: матч 4 пар; крупные карточки; голос/хаптик опционально; закрытие без лома главного сценария.
+### Sprint D — Medication escalation (P2)
+- После reminder: Принял / Позже; без ответа → warning → опционально alert по severity LOW/MEDIUM/HIGH.
+- Sync intakes через DB (не только localStorage).
 
-### Волна 3 — Supabase wiring + pairing
-- Подключить реальный Supabase project (env из `.env.example`).
-- Применить migrations; RLS.
-- Pairing: опекун вводит invite-код пожилого → `family_links.active`.
-- Realtime/sync приёмов между устройствами.
-- Acceptance: два браузера/два устройства видят один статус приёма; без сложного signup.
+### Sprint E — Product redesign dashboard (P2 + §2–3)
+- Dashboard elderly: приветствие, статус «всё в порядке», карточки Лекарства / SOS / Память / Состояние.
+- Guardian dashboard: статус, пропуски, история тревог.
+- Единый стиль: calm/minimal/professional + accessibility; продолжить DESIGN.md clay без градиент-спама.
 
-### Волна 4 — РЕАЛЬНЫЙ emergency push (критично для жюри)
-- PWA + service worker + Web Push permission на телефоне опекуна.
-- Сохранять `push_subscriptions` в БД.
-- Дописать Edge Function `emergency-alert`/`send-push`: реальная VAPID-отправка (не stub).
-- Флоу: SOS / таймер не отменён → событие в БД → Edge Function → **push на телефон опекуна** (звук/вибрация).
-- Demo-режим для жюри: «симулировать истечение таймера за N сек» + видимый лог «push sent».
-- Acceptance: на втором устройстве (телефон опекуна) приходит системный push; в UI пожилого видно «уведомлены близкие»; запись в `emergency_events`.
+### Sprint F — Memory card game (P3 + §1)
+- Парные карты: easy 3 / mid 6 / hard 8–10 пар; счёт пар/попыток/таймер; restart; end screen; категории.
+- Крупные карты, высокий контраст; результаты в game_results / memory_*.
 
-### Волна 5 — polish & ship
-- Demo script для жюри (1 экран → принять → память-пары → SOS→push).
-- README: как поднять Supabase + VAPID.
-- PR + CI + CodeRabbit.
+### Sprint G — Sensors (P2, осторожно)
+- Fall: DeviceMotion + threshold/debounce/cooldown + permission; иначе «недоступно».
+- Night monitoring: architecture + honest copy; detection-модуль pluggable, без меддиагноза.
+- Не блокирует демо, если A–C готовы.
 
-## Скиллы / помогаторы (рекомендуемые)
+### Sprint H — Ship
+- Закрыть CodeRabbit snooze-queue.
+- README: два устройства, VAPID, Supabase.
+- PR + CI + CodeRabbit; demo checklist для жюри.
 
-Уже есть у нас:
-- Addy Osmani pack: `planning-and-task-breakdown`, `frontend-ui-engineering`, `incremental-implementation`, `constraint-driven-development`, `shipping-and-launch`.
+## Порядок на ближайшие дни
 
-Поставить / использовать в Cursor:
-- https://github.com/supabase/agent-skills — официальный Supabase skill (+ postgres best practices).
-- https://github.com/Eldergenix/SUPER-DESIGN — design tokens + WCAG gates (хорошо стыкуется с clay + accessibility).
-- 21st.dev agent MCP/skills: https://21st.dev/mcp.md , https://21st.dev/.well-known/skills/index.json
-- Референс-реализации push: паттерны Edge Function `push-dispatch` (Web Push + VAPID), как в PWA+Supabase проектах.
+1. **A → B → C** (без этого ТЗ не выполнено).  
+2. Параллельно лёгкий UI polish на countdown/guardian alert экранах.  
+3. Затем D + E.  
+4. F (игра).  
+5. G по остатку времени.
 
-## Вне скоупа сейчас
-- Сложный email/пароль signup.
-- Нижний tab bar.
-- SMS/звонки Twilio — только если останется время после Web Push.
+## Definition of Done (главный)
 
-## Следующий шаг после approve плана
-Волна 0+1 промпт в Cursor (Claude), параллельно завести Supabase project + VAPID keys для волны 3–4.
+Судья: два телефона, два аккаунта, связаны → Emergency на A → countdown без отмены → push на B (+ realtime если открыт) → запись в истории → без дублей.
+
+## Стек
+
+Vite/React/Tailwind (есть) + Supabase Auth/DB/Realtime/Edge Functions + Web Push (web-push на Edge) + PWA service worker.
+
+## Design mandate (user)
+Sprint E redesign MUST browse and apply patterns from: Refero styles, https://21st.dev, https://reactbits.dev (clay/soft UI + senior-friendly). Do not redesign from memory alone.
+

@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Heart, X, Check, ArrowRight, ShieldCheck, Settings, Wrench } from 'lucide-react';
+import { User, Heart, X, Check, ArrowRight, ShieldCheck, Settings, Wrench, LogOut } from 'lucide-react';
 import { UserRole } from '../types/silvercare';
 import { audioAlarmService } from '../services/audioAlarmService';
 
@@ -13,6 +13,9 @@ interface RoleSwitcherModalProps {
   onOpenSettings?: () => void;
   /** Discreet entry to the jury demo scenarios panel */
   onOpenDemoControl?: () => void;
+  /** Signed-in account email (Sprint A), shown so a two-account demo is unambiguous */
+  accountEmail?: string;
+  onSignOut?: () => void;
 }
 
 export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
@@ -23,6 +26,8 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
   onOpenFaceIdDemo,
   onOpenSettings,
   onOpenDemoControl,
+  accountEmail,
+  onSignOut,
 }) => {
   if (!isOpen) return null;
 
@@ -169,6 +174,24 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
                 <span>Демо для жюри</span>
               </button>
             )}
+          </div>
+        )}
+
+        {/* Signed-in account (Sprint A) — lets a judge cleanly sign out of one
+            demo account before signing into the second one. */}
+        {onSignOut && (
+          <div className="pt-2 border-t border-black/[0.06] flex items-center justify-between gap-2 px-1 text-xs">
+            <span className="text-clay-ink-soft truncate min-w-0" title={accountEmail}>
+              {accountEmail ? `Аккаунт: ${accountEmail}` : 'Аккаунт'}
+            </span>
+            <button
+              id="btn-more-menu-signout"
+              onClick={onSignOut}
+              className="text-clay-danger font-bold flex items-center gap-1 cursor-pointer shrink-0"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Выйти</span>
+            </button>
           </div>
         )}
       </div>
