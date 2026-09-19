@@ -1,35 +1,23 @@
 import React from 'react';
 import {
-  Pill,
-  Brain,
-  Calendar,
-  Heart,
-  AlertTriangle,
   Mic,
-  Smile,
-  Layers,
   Settings,
-  ShieldCheck,
-  Sparkles,
-  Volume2,
   ChevronRight,
-  Clock,
-  LogIn,
 } from 'lucide-react';
 import { TodayScheduleItem, UserProfile } from '../types/medication';
 import { getFormattedRussianDate } from '../services/storageService';
 import { NextMedicationCard } from '../components/NextMedicationCard';
 import { MedicationListItem } from '../components/MedicationListItem';
-import { AdherenceGauge } from '../components/AdherenceGauge';
 import { audioAlarmService } from '../services/audioAlarmService';
 
 interface TodayScreenProps {
   scheduleItems: TodayScheduleItem[];
   nextItem: TodayScheduleItem | null;
   userProfile: UserProfile;
+  /** scheduleItem.id -> "HH:MM" when snoozed, so cards can show "Отложено до ..." */
+  snoozeLabels: Record<string, string>;
   onConfirmIntake: (item: TodayScheduleItem) => void;
   onOpenAlarm: (item: TodayScheduleItem) => void;
-  onOpenSettings: () => void;
   onOpenFaceIdModal: () => void;
   onOpenVoiceModal: () => void;
   onOpenFlashcards: () => void;
@@ -38,7 +26,8 @@ interface TodayScreenProps {
   onOpenFamily: () => void;
   onOpenEmergency: () => void;
   onOpenVoiceAssistant: () => void;
-  onOpenRoleSwitch: () => void;
+  /** Single discreet entry point: role switch, caregiver settings, jury demo tools */
+  onOpenMoreMenu: () => void;
   demoCountdown: number | null;
   onCancelDemoCountdown: () => void;
 }
@@ -47,10 +36,9 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   scheduleItems,
   nextItem,
   userProfile,
+  snoozeLabels,
   onConfirmIntake,
   onOpenAlarm,
-  onOpenSettings,
-  onOpenFaceIdModal,
   onOpenVoiceModal,
   onOpenFlashcards,
   onOpenMemorySuite,
@@ -58,7 +46,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   onOpenFamily,
   onOpenEmergency,
   onOpenVoiceAssistant,
-  onOpenRoleSwitch,
+  onOpenMoreMenu,
   demoCountdown,
   onCancelDemoCountdown,
 }) => {
@@ -67,7 +55,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
   const totalCount = scheduleItems.length;
 
   return (
-    <div className="flex-1 flex flex-col bg-[#F2F2F7] min-h-full pb-28 relative overflow-x-hidden font-sans">
+    <div className="flex-1 flex flex-col bg-[#F2F2F7] min-h-screen relative overflow-x-hidden font-sans">
       {/* Active Demo Countdown Banner */}
       {demoCountdown !== null && (
         <div className="sticky top-0 z-30 bg-[#FF3B30] text-white p-3 px-5 flex items-center justify-between shadow-md">
@@ -87,59 +75,56 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
         </div>
       )}
 
-      {/* Senior Clean Header: SilverCare brand, Greeting & Discrete "Войти" */}
-      <header className="px-5 sm:px-6 pt-4 pb-2 shrink-0 relative z-10">
-        <div className="flex items-center justify-between">
+      {/* Clean website-style header: brand + greeting + ONE discreet "more" entry
+          (caregiver / settings / jury demo tools live behind this single icon,
+          never a bottom tab bar). */}
+      <header className="px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 pb-2 shrink-0 relative z-10">
+        <div className="max-w-2xl lg:max-w-3xl mx-auto flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xl">💊</span>
-              <span className="text-base font-black text-[#1C1C1E] tracking-tight">
+              <span className="text-base sm:text-lg font-black text-[#1C1C1E] tracking-tight">
                 SilverCare
               </span>
+              <span className="hidden sm:inline text-xs text-[#8E8E93] font-medium">
+                • {dateStr}
+              </span>
             </div>
-            <p className="text-xs text-[#8E8E93] font-semibold mt-0.5">
+            <p className="text-xs sm:text-sm text-[#8E8E93] font-semibold mt-0.5">
               Добрый день, {userProfile.name}! ❤️
             </p>
           </div>
 
-          {/* Right Top Buttons: "Войти / Роль" and Discrete Settings */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onOpenRoleSwitch}
-              className="h-9 px-3 rounded-full bg-white hover:bg-zinc-50 border border-black/[0.08] text-[#1C1C1E] font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-              title="Переключить роль: Подопечный / Опекун"
-            >
-              <LogIn className="w-3.5 h-3.5 text-[#007AFF]" />
-              <span>Войти</span>
-            </button>
-
-            <button
-              id="btn-open-settings"
-              onClick={onOpenSettings}
-              className="w-9 h-9 rounded-full bg-white hover:bg-zinc-50 border border-black/[0.08] text-[#1C1C1E] flex items-center justify-center shadow-2xs transition-all cursor-pointer"
-              aria-label="Настройки"
-            >
-              <Settings className="w-4 h-4 text-[#8E8E93]" />
-            </button>
-          </div>
+          {/* Single discreet entry point — intentionally low-contrast, icon-only */}
+          <button
+            id="btn-open-more-menu"
+            onClick={onOpenMoreMenu}
+            className="w-9 h-9 rounded-full bg-white/70 hover:bg-white border border-black/[0.06] text-[#8E8E93] hover:text-[#1C1C1E] flex items-center justify-center shadow-2xs transition-all cursor-pointer"
+            aria-label="Ещё: опекун, настройки и демо для жюри"
+            title="Ещё"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="flex-1 px-4 sm:px-5 max-w-xl w-full mx-auto space-y-4 relative z-10">
-        {/* SECTION 1: HERO NEXT MEDICATION CARD with Giant 110px button (Req #2, #4, #16, #50) */}
+      {/* Main Container: comfortably wide on desktop, touch-first on mobile */}
+      <main className="flex-1 px-4 sm:px-6 lg:px-8 max-w-2xl lg:max-w-3xl w-full mx-auto space-y-4 sm:space-y-5 relative z-10 pb-10">
+        {/* SECTION 1: HERO — the ONE clear primary action on this screen */}
         <section aria-labelledby="heading-hero-medication">
           <NextMedicationCard
             item={nextItem}
             onConfirmIntake={onConfirmIntake}
             onTriggerAlarm={onOpenAlarm}
             onOpenVoiceSettings={onOpenVoiceModal}
+            snoozedUntilLabel={nextItem ? snoozeLabels[nextItem.id] : null}
           />
         </section>
 
-        {/* SECTION 2: 5 GIANT SENIOR TILES (Req #3, #50, #80) */}
+        {/* SECTION 2: Secondary actions as plain cards/tiles — NOT tabs.
+            (Case explicitly forbids a bottom tab bar for the elderly UI.) */}
         <section aria-label="Основные разделы">
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
             {/* Tile 1: 🧠 Память */}
             <button
               onClick={() => {
@@ -151,7 +136,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
               <div className="w-12 h-12 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] flex items-center justify-center shrink-0 text-2xl">
                 🧠
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-base font-black text-[#1C1C1E] leading-tight">
                   Память
                 </h3>
@@ -172,7 +157,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
               <div className="w-12 h-12 rounded-2xl bg-[#FF9500]/10 text-[#FF9500] flex items-center justify-center shrink-0 text-2xl">
                 📅
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-base font-black text-[#1C1C1E] leading-tight">
                   Мой день
                 </h3>
@@ -193,7 +178,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
               <div className="w-12 h-12 rounded-2xl bg-[#FF2D55]/10 text-[#FF2D55] flex items-center justify-center shrink-0 text-2xl">
                 ❤️
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-base font-black text-[#1C1C1E] leading-tight">
                   Близкие
                 </h3>
@@ -214,7 +199,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
               <div className="w-12 h-12 rounded-2xl bg-[#FF3B30] text-white flex items-center justify-center shrink-0 text-xl font-bold">
                 🆘
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-base font-black text-[#FF3B30] leading-tight">
                   Помощь
                 </h3>
@@ -232,20 +217,20 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
             onClick={onOpenVoiceAssistant}
             className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-[#007AFF]/20 rounded-3xl flex items-center justify-between shadow-2xs cursor-pointer hover:shadow-xs transition-all active:scale-98"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-[#007AFF] text-white flex items-center justify-center shadow-xs">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-[#007AFF] text-white flex items-center justify-center shadow-xs shrink-0">
                 <Mic className="w-5 h-5 stroke-[2.5]" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h4 className="text-sm font-black text-[#1C1C1E]">
                   Спросить SilverCare голосом
                 </h4>
-                <p className="text-xs text-[#8E8E93]">
+                <p className="text-xs text-[#8E8E93] truncate">
                   «Когда следующее лекарство?», «Что сделать сегодня?»
                 </p>
               </div>
             </div>
-            <span className="text-xs font-extrabold text-[#007AFF]">Спросить →</span>
+            <span className="text-xs font-extrabold text-[#007AFF] shrink-0 ml-2">Спросить →</span>
           </div>
         </section>
 
@@ -256,11 +241,11 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
             className="bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-black/[0.06] cursor-pointer hover:shadow-md transition-all active:scale-98 relative overflow-hidden group"
           >
             <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-[#FF9500]/10 text-[#FF9500] flex items-center justify-center text-xl">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-[#FF9500]/10 text-[#FF9500] flex items-center justify-center text-xl shrink-0">
                   🗂️
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-base font-extrabold text-[#1C1C1E]">
                     Флэш-карты для памяти
                   </h3>
@@ -270,7 +255,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
                 </div>
               </div>
 
-              <div className="w-7 h-7 rounded-full bg-[#F2F2F7] flex items-center justify-center text-[#1C1C1E]">
+              <div className="w-7 h-7 rounded-full bg-[#F2F2F7] flex items-center justify-center text-[#1C1C1E] shrink-0">
                 <ChevronRight className="w-4 h-4" />
               </div>
             </div>
@@ -303,6 +288,7 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
                 key={item.id}
                 item={item}
                 onSelect={onOpenAlarm}
+                snoozedUntilLabel={snoozeLabels[item.id]}
               />
             ))}
           </div>
@@ -315,52 +301,6 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
           </p>
         </footer>
       </main>
-
-      {/* Floating Bottom Nav Dock */}
-      <nav
-        id="floating-dock-nav"
-        className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 bg-white/90 ios-blur rounded-[28px] px-2 py-1.5 shadow-[0_10px_30px_rgba(0,0,0,0.08)] border border-black/[0.06] flex items-center justify-around max-w-[420px] w-[94%]"
-      >
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="flex-1 py-1 px-1 rounded-2xl text-[#007AFF] font-bold text-xs flex flex-col items-center gap-0.5 cursor-pointer"
-        >
-          <Clock className="w-5 h-5 stroke-[2.4]" />
-          <span className="text-[10px]">Сегодня</span>
-        </button>
-
-        <button
-          onClick={onOpenMemorySuite}
-          className="flex-1 py-1 px-1 rounded-2xl text-[#8E8E93] hover:text-[#007AFF] font-medium text-xs flex flex-col items-center gap-0.5 cursor-pointer"
-        >
-          <Brain className="w-5 h-5" />
-          <span className="text-[10px]">Память</span>
-        </button>
-
-        <button
-          onClick={onOpenFlashcards}
-          className="flex-1 py-1 px-1 rounded-2xl text-[#8E8E93] hover:text-[#FF9500] font-medium text-xs flex flex-col items-center gap-0.5 cursor-pointer"
-        >
-          <Layers className="w-5 h-5" />
-          <span className="text-[10px]">Карты</span>
-        </button>
-
-        <button
-          onClick={onOpenMyDay}
-          className="flex-1 py-1 px-1 rounded-2xl text-[#8E8E93] hover:text-[#FF9500] font-medium text-xs flex flex-col items-center gap-0.5 cursor-pointer"
-        >
-          <Calendar className="w-5 h-5" />
-          <span className="text-[10px]">Мой день</span>
-        </button>
-
-        <button
-          onClick={onOpenFamily}
-          className="flex-1 py-1 px-1 rounded-2xl text-[#8E8E93] hover:text-[#FF2D55] font-medium text-xs flex flex-col items-center gap-0.5 cursor-pointer"
-        >
-          <Heart className="w-5 h-5" />
-          <span className="text-[10px]">Близкие</span>
-        </button>
-      </nav>
     </div>
   );
 };

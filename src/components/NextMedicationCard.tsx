@@ -10,6 +10,8 @@ interface NextMedicationCardProps {
   onConfirmIntake: (item: TodayScheduleItem) => void;
   onTriggerAlarm: (item: TodayScheduleItem) => void;
   onOpenVoiceSettings?: () => void;
+  /** "HH:MM" if this item was snoozed and will ring again automatically */
+  snoozedUntilLabel?: string | null;
 }
 
 export const NextMedicationCard: React.FC<NextMedicationCardProps> = ({
@@ -17,6 +19,7 @@ export const NextMedicationCard: React.FC<NextMedicationCardProps> = ({
   onConfirmIntake,
   onTriggerAlarm,
   onOpenVoiceSettings,
+  snoozedUntilLabel,
 }) => {
   const [justConfirmed, setJustConfirmed] = useState(false);
   const [countdownStr, setCountdownStr] = useState('00:43');
@@ -93,11 +96,18 @@ export const NextMedicationCard: React.FC<NextMedicationCardProps> = ({
       className="relative w-full bg-white rounded-[36px] p-5 sm:p-7 border border-black/[0.06] shadow-sm overflow-hidden transition-all"
     >
       {/* Top row: Status pill & Countdown */}
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="inline-flex items-center gap-2 bg-[#007AFF]/10 text-[#007AFF] px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider">
-          <Clock className="w-4 h-4" />
-          <span>Пора принять лекарство</span>
-        </div>
+      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        {snoozedUntilLabel ? (
+          <div className="inline-flex items-center gap-2 bg-[#FF9500]/10 text-[#FF9500] px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider">
+            <Clock className="w-4 h-4" />
+            <span>Отложено до {snoozedUntilLabel}</span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 bg-[#007AFF]/10 text-[#007AFF] px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-black uppercase tracking-wider">
+            <Clock className="w-4 h-4" />
+            <span>Пора принять лекарство</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-1.5 bg-[#F2F2F7] px-3 py-1 rounded-full text-xs font-bold text-[#1C1C1E]">
           <span className="text-[#8E8E93]">⏱</span>

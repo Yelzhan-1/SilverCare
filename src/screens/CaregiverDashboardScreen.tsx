@@ -34,6 +34,7 @@ import { locationService, RouteInfo } from '../services/location/locationService
 import { notificationService } from '../services/notifications/notificationService';
 import { audioAlarmService } from '../services/audioAlarmService';
 import { speechService } from '../services/speechService';
+import { TimeInput24 } from '../components/TimeInput24';
 
 export interface CaregiverDashboardScreenProps {
   onSwitchToElderMode?: () => void;
@@ -445,17 +446,7 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
                   />
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold text-[#8E8E93] block mb-1">
-                    Время приёма
-                  </label>
-                  <input
-                    type="time"
-                    value={newMedTime}
-                    onChange={(e) => setNewMedTime(e.target.value)}
-                    className="w-full h-11 px-3 bg-[#F2F2F7] rounded-xl text-sm font-semibold border-none focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
-                  />
-                </div>
+                <TimeInput24 label="Время приёма (24ч)" value={newMedTime} onChange={setNewMedTime} />
               </div>
 
               <div>

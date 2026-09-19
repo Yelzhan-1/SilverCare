@@ -5,6 +5,7 @@ import { storageService } from '../services/storageService';
 import { speechService } from '../services/speechService';
 import { audioAlarmService } from '../services/audioAlarmService';
 import { MedicationVisual } from './MedicationVisual';
+import { TimeInput24 } from './TimeInput24';
 
 interface CaregiverSettingsModalProps {
   isOpen: boolean;
@@ -12,8 +13,6 @@ interface CaregiverSettingsModalProps {
   onStartDemoCountdown: (seconds: number) => void;
   onTriggerDemoInstant: () => void;
   onDataChanged: () => void;
-  isDeviceFrameActive: boolean;
-  onToggleDeviceFrame: () => void;
   onOpenVoiceModal?: () => void;
   onOpenFlashcards?: () => void;
 }
@@ -24,8 +23,6 @@ export const CaregiverSettingsModal: React.FC<CaregiverSettingsModalProps> = ({
   onStartDemoCountdown,
   onTriggerDemoInstant,
   onDataChanged,
-  isDeviceFrameActive,
-  onToggleDeviceFrame,
   onOpenVoiceModal,
   onOpenFlashcards,
 }) => {
@@ -278,16 +275,8 @@ export const CaregiverSettingsModal: React.FC<CaregiverSettingsModalProps> = ({
                 </div>
               )}
 
-              {/* Device simulator toggle & Reset state */}
-              <div className="pt-1 flex flex-col sm:flex-row items-center justify-between gap-2">
-                <button
-                  id="btn-toggle-device-frame"
-                  onClick={onToggleDeviceFrame}
-                  className="w-full sm:w-auto h-10 px-3.5 rounded-xl border border-black/[0.08] bg-white text-[#1C1C1E] hover:bg-[#F2F2F7] font-medium text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span>{isDeviceFrameActive ? '📱 Выключить рамку iPhone' : '📱 Показать рамку iPhone'}</span>
-                </button>
-
+              {/* Reset state */}
+              <div className="pt-1 flex flex-col sm:flex-row items-center justify-end gap-2">
                 <button
                   id="btn-reset-demo-data"
                   onClick={handleResetData}
@@ -338,18 +327,7 @@ export const CaregiverSettingsModal: React.FC<CaregiverSettingsModalProps> = ({
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-[#8E8E93] mb-1 uppercase tracking-wider">
-                    Время *
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    className="w-full h-11 px-3.5 text-base font-semibold rounded-xl border border-black/[0.08] focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20 focus:outline-none bg-[#F2F2F7]"
-                  />
-                </div>
+                <TimeInput24 label="Время * (24ч)" value={time} onChange={setTime} />
               </div>
 
               {/* Medicine Icon Preset Selection */}
