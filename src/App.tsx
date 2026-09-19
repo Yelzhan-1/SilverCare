@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { TodayScheduleItem, UserProfile } from './types/medication';
 import { UserRole } from './types/silvercare';
 import { storageService, getTodayDateKey } from './services/storageService';
@@ -14,6 +15,11 @@ import { medicationRepository } from './repositories/medicationRepository';
 import { scheduleRepository } from './repositories/scheduleRepository';
 import { audioAlarmService } from './services/audioAlarmService';
 import { snoozeService, PersistedSnooze } from './services/snoozeService';
+import { authRepository, ProfileRow } from './repositories/authRepository';
+
+// Auth & onboarding (Sprint A: real Supabase account + role + invite pairing)
+import { AuthScreen } from './components/auth/AuthScreen';
+import { RoleOnboardingScreen } from './components/auth/RoleOnboardingScreen';
 
 // Screens
 import { TodayScreen } from './screens/TodayScreen';
@@ -35,10 +41,87 @@ import { FaceIdAuthModal } from './components/FaceIdAuthModal';
 import { VoiceRecorderModal } from './components/VoiceRecorderModal';
 
 export default function App() {
-  // 1. Role State: Elderly vs Caregiver
-  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    return (localStorage.getItem('silvercare_active_role') as UserRole) || 'elderly';
-  });
+  // 0. AUTH GATE (Sprint A): real Supabase session + profile/role, replacing
+  // the old "always start as elderly, switch freely" localStorage-only flow.
+  // Routing: no session -> AuthScreen; session but no profiles row yet ->
+  // RoleOnboardingScreen; otherwise -> the existing app, gated by real role.
+  const [authStatus, setAuthStatus] = useState<'loading' | 'signed-out' | 'onboarding' | 'ready'>(
+    'loading'
+  );
+  const [session, setSession] = useState<Session | null>(null);
+  const [myProfile, setMyProfile] = useState<ProfileRow | null>(null);
+
+  const loadProfileForSession = useCallback(async (activeSession: Session | null) => {
+    if (!activeSession) {
+      setSession(null);
+      setMyProfile(null);
+      setAuthStatus('signed-out');
+      return;
+    }
+    setSession(activeSession);
+    try {
+      const profile = await authRepository.getMyProfile(activeSession.user.id);
+      if (!profile) {
+        setMyProfile(null);
+        setAuthStatus('onboarding');
+      } else {
+        setMyProfile(profile);
+        setAuthStatus('ready');
+      }
+    } catch (err) {
+      console.warn('Failed to load profile for session', err);
+      setAuthStatus('onboarding');
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    authRepository
+      .getSession()
+      .then((s) => {
+        if (!cancelled) loadProfileForSession(s);
+      })
+      .catch(() => {
+        if (!cancelled) setAuthStatus('signed-out');
+      });
+
+    const unsubscribe = authRepository.onAuthStateChange((s) => {
+      if (!cancelled) loadProfileForSession(s);
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [loadProfileForSession]);
+
+  const handleSignOut = async () => {
+    try {
+      await authRepository.signOut();
+    } catch (err) {
+      console.warn('Sign out failed', err);
+    }
+    // onAuthStateChange fires from signOut() too, but reset eagerly for a
+    // snappy UI instead of waiting on the round trip.
+    setSession(null);
+    setMyProfile(null);
+    setAuthStatus('signed-out');
+  };
+
+  // 1. Role State: Elderly vs Caregiver — DERIVED directly from the real
+  // profile at render time (not synced via a separate effect+state, which
+  // is one render behind and can show the wrong screen for a beat right
+  // after onboarding completes). `demoRoleOverride` lets the jury-demo
+  // RoleSwitcherModal still flip the view locally for a quick side-by-side
+  // demo on one browser; it's cleared whenever the signed-in profile
+  // changes so a leftover override never leaks onto a different account.
+  const [demoRoleOverride, setDemoRoleOverride] = useState<UserRole | null>(null);
+
+  useEffect(() => {
+    setDemoRoleOverride(null);
+  }, [myProfile?.id]);
+
+  const currentRole: UserRole = demoRoleOverride ?? (myProfile?.role as UserRole | undefined) ?? 'elderly';
 
   // 2. Schedule & Medication State
   const [scheduleItems, setScheduleItems] = useState<TodayScheduleItem[]>([]);
@@ -233,10 +316,10 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [demoCountdown]);
 
-  // Role switch handler
+  // Role switch handler (jury-demo override only — see currentRole above;
+  // the real role now lives in Supabase `profiles.role`, not localStorage)
   const handleSelectRole = (role: UserRole) => {
-    setCurrentRole(role);
-    localStorage.setItem('silvercare_active_role', role);
+    setDemoRoleOverride(role);
   };
 
   // Triggers the alarm flow for demonstration
@@ -354,6 +437,31 @@ export default function App() {
     setIsEmergencyExplicitOpen(true);
   };
 
+  // ---- AUTH GATE ----------------------------------------------------------
+  if (authStatus === 'loading') {
+    return (
+      <div className="min-h-screen w-full bg-clay-bg flex items-center justify-center">
+        <p className="text-clay-ink-soft font-semibold">Загрузка…</p>
+      </div>
+    );
+  }
+
+  if (authStatus === 'signed-out') {
+    return <AuthScreen />;
+  }
+
+  if (authStatus === 'onboarding' && session) {
+    return (
+      <RoleOnboardingScreen
+        userId={session.user.id}
+        onComplete={(profile) => {
+          setMyProfile(profile);
+          setAuthStatus('ready');
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen w-full bg-clay-bg">
       {/* IN-APP TOAST ALERT */}
@@ -429,7 +537,9 @@ export default function App() {
         <CaregiverDashboardScreen
           onBackToElderly={() => handleSelectRole('elderly')}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenDemoMenu={() => setIsRoleSwitcherOpen(true)}
           onTriggerDemoAlarm={triggerDemoAlarm}
+          userId={session?.user.id}
         />
       )}
 
@@ -487,6 +597,7 @@ export default function App() {
       <FamilyConnectionModal
         isOpen={isFamilyOpen}
         onClose={() => setIsFamilyOpen(false)}
+        userId={session?.user.id}
       />
 
       {/* VOICE ASSISTANT MODAL */}
@@ -510,6 +621,11 @@ export default function App() {
         onOpenDemoControl={() => {
           setIsRoleSwitcherOpen(false);
           setIsDemoControlOpen(true);
+        }}
+        accountEmail={session?.user.email}
+        onSignOut={() => {
+          setIsRoleSwitcherOpen(false);
+          handleSignOut();
         }}
       />
 
