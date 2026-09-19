@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: existing, error: loadError } = await admin
       .from('emergency_events')
-      .select('id, elderly_profile_id, status, type')
+      .select('id, elderly_profile_id, status, type, severity, metadata')
       .eq('id', payload.eventId)
       .maybeSingle();
     if (loadError) throw loadError;
@@ -118,8 +118,18 @@ Deno.serve(async (req: Request) => {
       .eq('id', elder?.profile_id ?? '')
       .maybeSingle();
 
-    const title = 'SilverCare: нужна помощь';
-    const body = `${elderProfile?.display_name || 'Подопечный'} нажал SOS. Откройте приложение.`;
+    const elderName = elderProfile?.display_name || 'Подопечный';
+    const meta = (existing.metadata ?? {}) as { medicationName?: string };
+    let title = 'SilverCare: нужна помощь';
+    let body = `${elderName} нажал SOS. Откройте приложение. Это не вызов скорой.`;
+    if (existing.type === 'missed_medication') {
+      const med = meta.medicationName ? ` (${meta.medicationName})` : '';
+      title = 'SilverCare: приём не подтверждён';
+      body = `${elderName} не подтвердил приём${med}. Уровень ${existing.severity || 'LOW'}. Скорая не вызывалась.`;
+    } else if (existing.type === 'fall_detection') {
+      title = 'SilverCare: резкое движение';
+      body = `${elderName}: датчик зафиксировал резкое движение. Это не диагноз падения.`;
+    }
 
     let delivered = 0;
     if ((subs ?? []).length > 0) {

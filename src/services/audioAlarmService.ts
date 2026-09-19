@@ -296,6 +296,26 @@ class AudioAlarmService {
     }
   }
 
+  public playTone(freq: number, duration = 0.12, volume = 0.08) {
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(volume, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration);
+    } catch {
+      // ignore
+    }
+  }
+
   public isPlaying(): boolean {
     return this.isAlarmPlaying;
   }

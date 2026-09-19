@@ -19,6 +19,9 @@
   --color-clay-success: #1E8F5E;
   --color-clay-danger: #D9503A;
   --color-clay-warning: #C97F1E;
+  --color-clay-wellbeing: #1F6B5C;
+  --color-clay-highlight: #FFF8EE;
+  --color-clay-ok-soft: #E7F5EE;
 
   --radius-clay-sm: 18px;
   --radius-clay-md: 24px;
@@ -44,6 +47,12 @@
   --shadow-clay-danger:
     0 14px 28px -8px rgba(217, 80, 58, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  --shadow-clay-spotlight:
+    0 18px 36px -16px rgba(43, 38, 24, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+
+  --duration-clay-fast: 180ms;
+  --duration-clay: 240ms;
 }
 
 @layer base {
@@ -71,7 +80,7 @@
     user-select: none;
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
-    background-color: #E5E5EA;
+    background-color: var(--color-clay-bg);
   }
 }
 

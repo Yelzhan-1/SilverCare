@@ -196,6 +196,7 @@ export type Database = {
           metadata: Json | null
           notified_at: string | null
           resolved_at: string | null
+          severity: string | null
           status: string
           triggered_at: string | null
           type: string
@@ -210,6 +211,7 @@ export type Database = {
           metadata?: Json | null
           notified_at?: string | null
           resolved_at?: string | null
+          severity?: string | null
           status?: string
           triggered_at?: string | null
           type: string
@@ -224,6 +226,7 @@ export type Database = {
           metadata?: Json | null
           notified_at?: string | null
           resolved_at?: string | null
+          severity?: string | null
           status?: string
           triggered_at?: string | null
           type?: string
@@ -317,6 +320,128 @@ export type Database = {
           },
           {
             foreignKeyName: "family_links_elderly_profile_id_fkey"
+            columns: ["elderly_profile_id"]
+            isOneToOne: false
+            referencedRelation: "elderly_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_results: {
+        Row: {
+          attempts: number
+          category: string
+          completed_at: string | null
+          difficulty: string
+          duration_seconds: number
+          elderly_profile_id: string
+          game_type: string
+          id: string
+          pairs_found: number
+          pairs_total: number
+          score: number
+          sound_enabled: boolean
+        }
+        Insert: {
+          attempts: number
+          category: string
+          completed_at?: string | null
+          difficulty: string
+          duration_seconds: number
+          elderly_profile_id: string
+          game_type?: string
+          id?: string
+          pairs_found: number
+          pairs_total: number
+          score?: number
+          sound_enabled?: boolean
+        }
+        Update: {
+          attempts?: number
+          category?: string
+          completed_at?: string | null
+          difficulty?: string
+          duration_seconds?: number
+          elderly_profile_id?: string
+          game_type?: string
+          id?: string
+          pairs_found?: number
+          pairs_total?: number
+          score?: number
+          sound_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_results_elderly_profile_id_fkey"
+            columns: ["elderly_profile_id"]
+            isOneToOne: false
+            referencedRelation: "elderly_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intake_logs: {
+        Row: {
+          alert_event_id: string | null
+          confirmed_at: string | null
+          created_at: string | null
+          dose_key: string
+          elderly_profile_id: string
+          id: string
+          medication_id: string
+          medication_name: string
+          response_time_seconds: number | null
+          scheduled_for: string
+          severity: string | null
+          snooze_count: number
+          status: string
+          updated_at: string | null
+          warning_at: string | null
+        }
+        Insert: {
+          alert_event_id?: string | null
+          confirmed_at?: string | null
+          created_at?: string | null
+          dose_key: string
+          elderly_profile_id: string
+          id?: string
+          medication_id: string
+          medication_name: string
+          response_time_seconds?: number | null
+          scheduled_for: string
+          severity?: string | null
+          snooze_count?: number
+          status?: string
+          updated_at?: string | null
+          warning_at?: string | null
+        }
+        Update: {
+          alert_event_id?: string | null
+          confirmed_at?: string | null
+          created_at?: string | null
+          dose_key?: string
+          elderly_profile_id?: string
+          id?: string
+          medication_id?: string
+          medication_name?: string
+          response_time_seconds?: number | null
+          scheduled_for?: string
+          severity?: string | null
+          snooze_count?: number
+          status?: string
+          updated_at?: string | null
+          warning_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_logs_alert_event_id_fkey"
+            columns: ["alert_event_id"]
+            isOneToOne: false
+            referencedRelation: "emergency_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intake_logs_elderly_profile_id_fkey"
             columns: ["elderly_profile_id"]
             isOneToOne: false
             referencedRelation: "elderly_profiles"
@@ -707,6 +832,10 @@ export type Database = {
       }
       create_alert: {
         Args: { p_metadata?: Json; p_type: string }
+        Returns: Database['public']['Tables']['emergency_events']['Row']
+      }
+      create_medication_alert: {
+        Args: { p_metadata?: Json; p_severity: string }
         Returns: Database['public']['Tables']['emergency_events']['Row']
       }
       is_linked_caregiver: { Args: { elder_id: string }; Returns: boolean }

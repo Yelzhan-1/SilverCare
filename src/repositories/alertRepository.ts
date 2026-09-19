@@ -15,6 +15,19 @@ export function isOnline(): boolean {
 }
 
 export const alertRepository = {
+  async createMedicationAlert(
+    severity: 'LOW' | 'MEDIUM' | 'HIGH',
+    metadata: Record<string, unknown> = {}
+  ): Promise<AlertRow> {
+    const { data, error } = await supabase.rpc('create_medication_alert', {
+      p_severity: severity,
+      p_metadata: metadata as Json,
+    });
+    if (error) throw error;
+    if (!data) throw new Error('Не удалось создать уведомление о приёме.');
+    return data;
+  },
+
   async createAlert(type: string, metadata: Record<string, unknown> = {}): Promise<AlertRow> {
     const { data, error } = await supabase.rpc('create_alert', {
       p_type: type,
