@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Heart, X, Check, ArrowRight, ShieldCheck } from 'lucide-react';
+import { User, Heart, X, Check, ArrowRight, ShieldCheck, Settings, Wrench } from 'lucide-react';
 import { UserRole } from '../types/silvercare';
 import { audioAlarmService } from '../services/audioAlarmService';
 
@@ -9,6 +9,10 @@ interface RoleSwitcherModalProps {
   onSelectRole: (role: UserRole) => void;
   onClose: () => void;
   onOpenFaceIdDemo: () => void;
+  /** Discreet entry to medication list / caregiver settings */
+  onOpenSettings?: () => void;
+  /** Discreet entry to the jury demo scenarios panel */
+  onOpenDemoControl?: () => void;
 }
 
 export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
@@ -17,6 +21,8 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
   onSelectRole,
   onClose,
   onOpenFaceIdDemo,
+  onOpenSettings,
+  onOpenDemoControl,
 }) => {
   if (!isOpen) return null;
 
@@ -129,6 +135,39 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
             👤 Проверить Face ID
           </button>
         </div>
+
+        {/* Discreet secondary entries: caregiver settings & jury demo tools.
+            Intentionally small/quiet — not part of the elderly main scenario. */}
+        {(onOpenSettings || onOpenDemoControl) && (
+          <div className="pt-2 border-t border-black/[0.06] flex items-center justify-center gap-4 text-xs">
+            {onOpenSettings && (
+              <button
+                id="btn-more-menu-settings"
+                onClick={() => {
+                  onClose();
+                  onOpenSettings();
+                }}
+                className="text-[#8E8E93] hover:text-[#1C1C1E] font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Настройки и лекарства</span>
+              </button>
+            )}
+            {onOpenDemoControl && (
+              <button
+                id="btn-more-menu-demo"
+                onClick={() => {
+                  onClose();
+                  onOpenDemoControl();
+                }}
+                className="text-[#8E8E93] hover:text-[#1C1C1E] font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                <span>Демо для жюри</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -11,7 +11,8 @@ interface AlarmScreenProps {
   userName?: string;
   userAvatarUrl?: string;
   onConfirmTaken: (item: TodayScheduleItem) => void;
-  onDismiss: () => void;
+  /** Real snooze: caller re-triggers this same item ~5 minutes later. */
+  onSnooze: (item: TodayScheduleItem) => void;
 }
 
 export const AlarmScreen: React.FC<AlarmScreenProps> = ({
@@ -19,7 +20,7 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
   userName = 'Анна Ивановна',
   userAvatarUrl,
   onConfirmTaken,
-  onDismiss,
+  onSnooze,
 }) => {
   const [isSuccessState, setIsSuccessState] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -76,6 +77,14 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
     playVoiceMessage();
   };
 
+  // HONEST SNOOZE: stop sound now, caller re-triggers this alarm in ~5 minutes
+  const handleSnoozeClick = () => {
+    audioAlarmService.stopAlarmLoop();
+    speechService.stop();
+    audioAlarmService.triggerHaptic(30);
+    onSnooze(item);
+  };
+
   // ONE-CLICK CONFIRMATION
   const handleOneClickConfirm = () => {
     // Stop sound and voice immediately
@@ -126,13 +135,14 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
   return (
     <div
       id="medication-alarm-modal"
-      className="fixed inset-0 z-50 bg-black/80 ios-blur flex flex-col justify-between p-4 sm:p-6 select-none overflow-y-auto font-sans"
+      className="fixed inset-0 z-50 bg-black/80 ios-blur flex flex-col select-none font-sans"
+      style={{ height: '100dvh' }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="alarm-heading"
     >
-      {/* Top Banner Alert Bar in iOS Dynamic Island style */}
-      <div className="w-full max-w-md mx-auto pt-3 sm:pt-4">
+      {/* Top Banner Alert Bar in iOS Dynamic Island style (fixed, never scrolls away) */}
+      <div className="w-full max-w-md mx-auto pt-3 sm:pt-4 px-4 sm:px-6 shrink-0">
         <div className="bg-white/10 backdrop-blur-xl text-white py-2.5 px-5 rounded-full flex items-center justify-between border border-white/15 shadow-sm">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-[#FF3B30] animate-ping" />
@@ -161,8 +171,10 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
         </div>
       </div>
 
-      {/* Center Main Info Card in Apple Card Style */}
-      <div className="w-full max-w-md mx-auto my-auto bg-white rounded-[32px] p-6 sm:p-7 shadow-2xl border border-black/[0.06] text-center flex flex-col items-center">
+      {/* Scrollable middle zone: only THIS area scrolls if content is tall.
+          The confirm button below stays pinned and always visible without scrolling. */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-3">
+      <div className="w-full max-w-md mx-auto bg-white rounded-[32px] p-6 sm:p-7 shadow-2xl border border-black/[0.06] text-center flex flex-col items-center">
         {/* User identification badge */}
         {userName && (
           <div className="inline-flex items-center gap-2 bg-[#F2F2F7] px-3 py-1 rounded-full mb-3">
@@ -231,9 +243,11 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
           <span>{isSpeaking ? 'Голос звучит...' : 'Прослушать голос ещё раз'}</span>
         </button>
       </div>
+      </div>
 
-      {/* Bottom Area: Primary Confirm Button */}
-      <div className="w-full max-w-md mx-auto pb-4 sm:pb-6 pt-2 flex flex-col gap-2">
+      {/* Bottom Area: Primary Confirm Button — pinned outside the scroll area,
+          so it is ALWAYS visible without scrolling, even on short viewports. */}
+      <div className="w-full max-w-md mx-auto px-4 sm:px-6 pb-4 sm:pb-6 pt-2 flex flex-col gap-2 shrink-0">
         <button
           id="btn-confirm-taken"
           onClick={handleOneClickConfirm}
@@ -246,13 +260,13 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
           <span>Я принял</span>
         </button>
 
-        {/* Dismiss button */}
+        {/* Honest snooze: really re-alarms in 5 minutes (see App.tsx) */}
         <button
           id="btn-postpone-alarm"
-          onClick={onDismiss}
+          onClick={handleSnoozeClick}
           className="text-white/70 hover:text-white text-sm font-medium py-2 text-center cursor-pointer"
         >
-          Отложить на 5 минут / закрыть
+          Отложить на 5 минут
         </button>
       </div>
     </div>

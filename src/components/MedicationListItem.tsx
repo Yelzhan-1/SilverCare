@@ -6,11 +6,14 @@ import { MedicationVisual } from './MedicationVisual';
 interface MedicationListItemProps {
   item: TodayScheduleItem;
   onSelect: (item: TodayScheduleItem) => void;
+  /** "HH:MM" if this item was snoozed and will ring again automatically */
+  snoozedUntilLabel?: string | null;
 }
 
 export const MedicationListItem: React.FC<MedicationListItemProps> = ({
   item,
   onSelect,
+  snoozedUntilLabel,
 }) => {
   const isTaken = item.status === 'taken';
   const isMissed = item.status === 'missed';
@@ -74,7 +77,7 @@ export const MedicationListItem: React.FC<MedicationListItemProps> = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2 flex-wrap">
             <span
-              className={`text-xl sm:text-2xl font-black font-sans tracking-tight ${
+              className={`text-xl sm:text-2xl font-black font-sans tracking-tight shrink-0 ${
                 isTaken ? 'text-[#8E8E93] line-through' : 'text-[#1C1C1E]'
               }`}
             >
@@ -82,7 +85,7 @@ export const MedicationListItem: React.FC<MedicationListItemProps> = ({
             </span>
 
             <span
-              className={`text-lg sm:text-xl font-extrabold font-sans truncate ${
+              className={`text-lg sm:text-xl font-extrabold font-sans break-words leading-tight ${
                 isTaken ? 'text-[#8E8E93]' : 'text-[#1C1C1E]'
               }`}
             >
@@ -109,9 +112,15 @@ export const MedicationListItem: React.FC<MedicationListItemProps> = ({
               </span>
             )}
 
-            {isUpcoming && item.isNext && (
+            {isUpcoming && item.isNext && !snoozedUntilLabel && (
               <span className="inline-flex items-center text-xs font-bold text-[#007AFF] bg-[#007AFF]/10 px-2.5 py-0.5 rounded-full">
                 Следующий приём
+              </span>
+            )}
+
+            {!isTaken && snoozedUntilLabel && (
+              <span className="inline-flex items-center text-xs font-bold text-[#FF9500] bg-[#FF9500]/10 px-2.5 py-0.5 rounded-full">
+                ⏰ Отложено до {snoozedUntilLabel}
               </span>
             )}
           </div>

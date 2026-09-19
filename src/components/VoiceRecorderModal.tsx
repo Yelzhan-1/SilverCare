@@ -17,6 +17,7 @@ import { UserProfile } from '../types/medication';
 import { storageService } from '../services/storageService';
 import { audioAlarmService } from '../services/audioAlarmService';
 import { speechService } from '../services/speechService';
+import { getMediaErrorMessage } from '../utils/mediaErrors';
 
 interface VoiceRecorderModalProps {
   isOpen: boolean;
@@ -138,7 +139,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
       }, 1000);
     } catch (err) {
       console.warn('Microphone recording error:', err);
-      setMicError('Не удалось получить доступ к микрофону. Проверьте разрешения в браузере.');
+      setMicError(getMediaErrorMessage(err, 'microphone'));
       setIsRecording(false);
     }
   };

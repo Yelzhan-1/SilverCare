@@ -4,6 +4,7 @@ import { UserProfile } from '../types/medication';
 import { storageService } from '../services/storageService';
 import { audioAlarmService } from '../services/audioAlarmService';
 import { speechService } from '../services/speechService';
+import { getMediaErrorMessage } from '../utils/mediaErrors';
 
 interface FaceIdAuthModalProps {
   isOpen: boolean;
@@ -110,7 +111,9 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
       }
     } catch (err) {
       console.warn('Camera access error:', err);
-      setCameraError('Не удалось включить веб-камеру. Вы можете выбрать готовое фото лица ниже.');
+      setCameraError(
+        `${getMediaErrorMessage(err, 'camera')} А пока вы можете выбрать готовое фото ниже.`
+      );
       setIsCameraActive(false);
     }
   };
