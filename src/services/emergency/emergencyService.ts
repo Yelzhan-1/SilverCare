@@ -40,6 +40,7 @@ function toUiEvent(row: AlertRow): EmergencyEvent {
     cancelledAt: row.cancelled_at ?? undefined,
     resolvedAt: row.resolved_at ?? undefined,
     acknowledgedBy: row.acknowledged_by ?? undefined,
+    severity: (row.severity as EmergencyEvent['severity']) ?? undefined,
     metadata,
   };
 }

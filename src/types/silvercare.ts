@@ -97,7 +97,9 @@ export interface MedicationSchedule {
   updatedAt: string;
 }
 
-export type MedicationIntakeStatus = 'pending' | 'taken' | 'missed' | 'skipped';
+export type MedicationIntakeStatus = 'pending' | 'taken' | 'missed' | 'skipped' | 'snoozed';
+
+export type AlertSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
 
 export interface MedicationIntake {
   id: string;
@@ -146,12 +148,15 @@ export interface EmergencyEvent {
   cancelledAt?: string;
   resolvedAt?: string;
   acknowledgedBy?: string;
+  severity?: AlertSeverity;
   metadata?: {
     medicationId?: string;
     medicationName?: string;
     countdownRemaining?: number;
     reason?: string;
     locationNote?: string;
+    doseKey?: string;
+    severity?: AlertSeverity;
   };
 }
 

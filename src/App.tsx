@@ -16,6 +16,8 @@ import { scheduleRepository } from './repositories/scheduleRepository';
 import { audioAlarmService } from './services/audioAlarmService';
 import { snoozeService, PersistedSnooze } from './services/snoozeService';
 import { authRepository, ProfileRow } from './repositories/authRepository';
+import { escalationService, EscalationSnapshot } from './services/medication/escalationService';
+import { intakeRepository } from './repositories/intakeRepository';
 
 // Auth & onboarding (Sprint A: real Supabase account + role + invite pairing)
 import { AuthScreen } from './components/auth/AuthScreen';
@@ -28,7 +30,10 @@ import { CaregiverDashboardScreen } from './screens/CaregiverDashboardScreen';
 // Core Overlays & Modals
 import { AlarmScreen } from './components/AlarmScreen';
 import { EmergencyModal } from './features/safety/EmergencyModal';
+import { MissedMedicationWarning } from './features/medication/MissedMedicationWarning';
 import { MemorySuiteModal } from './features/memory/MemorySuiteModal';
+import { MemoryPairGame } from './features/memory/MemoryPairGame';
+import { WellbeingPanel } from './features/sensors/WellbeingPanel';
 import { MemoryFlashcardsModal } from './components/MemoryFlashcardsModal';
 import { MemoryGame } from './components/MemoryGame';
 import { MyDayAndJournalModal } from './components/MyDayAndJournalModal';
@@ -156,15 +161,28 @@ export default function App() {
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
   const [isDemoControlOpen, setIsDemoControlOpen] = useState(false);
   const [isEmergencyExplicitOpen, setIsEmergencyExplicitOpen] = useState(false);
+  const [isPairGameOpen, setIsPairGameOpen] = useState(false);
+  const [isWellbeingOpen, setIsWellbeingOpen] = useState(false);
+  const dueFiredRef = useRef<Set<string>>(new Set());
 
   // 5. Emergency Service State Machine Subscription
   const [emergencySnapshot, setEmergencySnapshot] = useState<EmergencySnapshot>(() =>
     emergencyService.getSnapshot()
   );
+  const [escalationSnapshot, setEscalationSnapshot] = useState<EscalationSnapshot>(() =>
+    escalationService.getSnapshot()
+  );
 
   useEffect(() => {
     const unsub = emergencyService.subscribe((snapshot) => {
       setEmergencySnapshot(snapshot);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = escalationService.subscribe((snapshot) => {
+      setEscalationSnapshot(snapshot);
     });
     return unsub;
   }, []);
@@ -234,6 +252,7 @@ export default function App() {
 
     if (!snoozeService.isAlreadyTaken(record)) {
       setActiveAlarmItem(record.item);
+      escalationService.watch(record.item);
     }
   }, []);
 
@@ -316,6 +335,30 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [demoCountdown]);
 
+  // Auto-open the next due reminder and start missed-med escalation (not SOS).
+  useEffect(() => {
+    if (authStatus !== 'ready' || currentRole !== 'elderly') return;
+    const due = scheduleItems.find(
+      (item) => item.status === 'upcoming' && !snoozes[item.id] && item.time <= currentTimeStr
+    );
+    if (!due || dueFiredRef.current.has(due.id)) return;
+    dueFiredRef.current.add(due.id);
+    setActiveAlarmItem(due);
+    escalationService.watch(due);
+  }, [authStatus, currentRole, currentTimeStr, scheduleItems, snoozes]);
+
+  const statusKind =
+    emergencySnapshot.state === 'COUNTDOWN' ||
+    emergencySnapshot.state === 'ALERT_CREATED' ||
+    emergencySnapshot.state === 'CAREGIVER_NOTIFIED'
+      ? 'alert'
+      : escalationSnapshot.phase === 'warning' ||
+          escalationSnapshot.phase === 'low' ||
+          escalationSnapshot.phase === 'medium' ||
+          escalationSnapshot.phase === 'high'
+        ? 'attention'
+        : 'ok';
+
   // Role switch handler (jury-demo override only — see currentRole above;
   // the real role now lives in Supabase `profiles.role`, not localStorage)
   const handleSelectRole = (role: UserRole) => {
@@ -343,6 +386,7 @@ export default function App() {
     );
 
     setActiveAlarmItem(target);
+    escalationService.watch(target);
   };
 
   // 1-CLICK CONFIRMATION HANDLER
@@ -353,9 +397,18 @@ export default function App() {
     // 1. Mark in legacy storage
     storageService.markMedicationTaken(item.medicationId, item.time);
 
-    // 2. Mark in local repository layer
+    // 2. Mark in local repository layer + Supabase intake_logs
     await medicationRepository.recordIntake(item.medicationId, item.time, 'taken', 12);
     await scheduleRepository.setCompletedByMedication(item.medicationId, true);
+    await intakeRepository.upsert({
+      doseKey: item.id,
+      medicationId: item.medicationId,
+      medicationName: item.name,
+      scheduledFor: `${getTodayDateKey()}T${item.time}:00`,
+      status: 'taken',
+      confirmedAt: new Date().toISOString(),
+    });
+    escalationService.markTaken(item.id);
 
     // 3. Clear any pending snooze timer + persisted record for this item —
     // it's taken now, no need to re-ring
@@ -406,6 +459,7 @@ export default function App() {
     setSnoozes((prev) => ({ ...prev, [record.id]: record }));
     setActiveAlarmItem(null);
     scheduleSnoozeTimer(record);
+    escalationService.markSnoozed(item.id);
 
     legacyNotificationService.showNotification(
       'SilverCare: Напоминание отложено',
@@ -491,7 +545,7 @@ export default function App() {
               id="btn-accept-memory-prompt"
               onClick={() => {
                 setShowMemoryPrompt(false);
-                setShowMemoryGame(true);
+                setIsPairGameOpen(true);
               }}
               className="clay-tap h-9 px-3.5 bg-clay-primary hover:brightness-110 text-white text-xs font-bold rounded-full cursor-pointer transition-colors"
             >
@@ -516,16 +570,15 @@ export default function App() {
           nextItem={nextItem}
           userProfile={userProfile}
           snoozeInfo={snoozeInfo}
+          statusKind={statusKind}
           onConfirmIntake={handleConfirmTaken}
-          onOpenAlarm={(item) => setActiveAlarmItem(item)}
-          onOpenFaceIdModal={() => handleOpenFaceIdModal('register')}
-          onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
-          onOpenFlashcards={() => setIsFlashcardsOpen(true)}
-          onOpenMemorySuite={() => setIsMemorySuiteOpen(true)}
-          onOpenMyDay={() => setIsMyDayOpen(true)}
-          onOpenFamily={() => setIsFamilyOpen(true)}
+          onOpenAlarm={(item) => {
+            setActiveAlarmItem(item);
+            escalationService.watch(item);
+          }}
           onOpenEmergency={handleOpenEmergency}
-          onOpenVoiceAssistant={() => setIsVoiceAssistantOpen(true)}
+          onOpenPairGame={() => setIsPairGameOpen(true)}
+          onOpenWellbeing={() => setIsWellbeingOpen(true)}
           onOpenMoreMenu={() => setIsRoleSwitcherOpen(true)}
           demoCountdown={demoCountdown}
           onCancelDemoCountdown={() => setDemoCountdown(null)}
@@ -564,6 +617,40 @@ export default function App() {
         isCaregiverView={currentRole === 'caregiver'}
         online={emergencySnapshot.online}
         lastError={emergencySnapshot.lastError}
+      />
+
+      <MissedMedicationWarning
+        snapshot={escalationSnapshot}
+        onTaken={handleConfirmTaken}
+        onSnooze={handleSnoozeAlarm}
+      />
+
+      <MemoryPairGame isOpen={isPairGameOpen} onClose={() => setIsPairGameOpen(false)} />
+
+      <WellbeingPanel
+        isOpen={isWellbeingOpen}
+        onClose={() => setIsWellbeingOpen(false)}
+        onPossibleFall={() => {
+          setIsWellbeingOpen(false);
+          void emergencyService.startCountdown(
+            'fall_detection',
+            { reason: 'Резкое движение (не диагноз падения)' },
+            15
+          );
+          setIsEmergencyExplicitOpen(true);
+        }}
+        onOpenMyDay={() => {
+          setIsWellbeingOpen(false);
+          setIsMyDayOpen(true);
+        }}
+        onOpenFamily={() => {
+          setIsWellbeingOpen(false);
+          setIsFamilyOpen(true);
+        }}
+        onOpenFlashcards={() => {
+          setIsWellbeingOpen(false);
+          setIsFlashcardsOpen(true);
+        }}
       />
 
       {/* COMPREHENSIVE MEMORY SUITE MODAL (Picture, logic, attention, route) */}
@@ -637,6 +724,15 @@ export default function App() {
         onClose={() => setIsDemoControlOpen(false)}
         onSwitchRole={handleSelectRole}
         onOpenMemorySuite={() => setIsMemorySuiteOpen(true)}
+        onOpenPairGame={() => setIsPairGameOpen(true)}
+        onTriggerDueAlarm={triggerDemoAlarm}
+        onTriggerMissedEscalation={() => {
+          const target =
+            scheduleItems.find((i) => i.status === 'upcoming') || scheduleItems[0];
+          if (!target) return;
+          setActiveAlarmItem(target);
+          escalationService.watch(target, { demoFast: true });
+        }}
       />
 
       {/* FACE ID & EASY PROFILE AUTH MODAL */}

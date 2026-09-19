@@ -1,9 +1,7 @@
 # SilverCare — Design System (Claymorphism, senior-friendly)
 
-Статус: Волна 1. Применено к главному экрану пожилого (`TodayScreen`, `NextMedicationCard`,
-`MedicationListItem`), `AlarmScreen`, soft memory-баннеру и `RoleSwitcherModal` / кнопке «Ещё».
-Остальные экраны (опекун, настройки, доп. модалки памяти) сознательно оставлены в прежнем
-iOS-стиле — переедут на токены отдельной волной, чтобы этот PR оставался маленьким и обозримым.
+Статус: Волна 2 (Sprint E). Главный экран пожилого и панель опекуна на clay-токенах:
+приветствие, статус «всё в порядке», крупные ярлыки, inbox тревог и пропусков.
 
 ## Зачем Claymorphism, а не Neumorphism
 
@@ -76,9 +74,31 @@ Claymorphism берёт ту же идею мягкого, объёмного «
 все `animation`/`transition` до почти нуля для пользователей, которые выбрали «уменьшить
 движение» в ОС — актуально для пожилых с вестибулярной чувствительностью.
 
-## Что НЕ трогали в этой волне
+## Волна 2 — Sprint E (Refero / 21st.dev / React Bits)
 
-- `CaregiverSettingsModal`, `CaregiverDashboardScreen`, `DemoControlPanel`, `MemoryGame`,
-  `MemorySuiteModal` и остальные модалки — остаются на старой iOS-палитре. Переезд на clay-токены
-  запланирован отдельной волной, чтобы не делать один гигантский PR.
-- Нижние табы/вкладки **не возвращали** — кейс их запрещает для экрана пожилого.
+Перед redesign открыты: Refero (health dashboards: greeting + status pill + 2×2 shortcuts),
+[21st.dev](https://21st.dev) (Spotlight Card, large CTA, interactive hover — без shader-спама),
+[reactbits.dev](https://reactbits.dev) (Spotlight Card / soft press). Fluid-glass и click-spark
+**не** переносили: низкий контраст и лишнее движение вредны пожилым.
+
+Паттерн, который применили:
+
+- приветствие + статус-чип «Всё в порядке»;
+- четыре огромные clay-плитки (лекарства / SOS / игра / состояние);
+- spotlight = толстая внешняя тень + внутренний блик сверху (`shadow-clay-spotlight`);
+- press = `clay-tap` (transform + inset shadow), не layout-анимация;
+- опекун: связь, пропуски, история тревог на тех же токенах.
+
+### Новые токены
+
+| Токен | Назначение |
+|---|---|
+| `--color-clay-wellbeing` | Спокойный teal для «Состояние» / датчики |
+| `--color-clay-highlight` | Тёплая подложка spotlight-карточек |
+| `--color-clay-ok-soft` | Фон статус-баннера «всё в порядке» |
+| `--shadow-clay-spotlight` | Карточка-«глина» как 21st Spotlight Card, без курсорного glare |
+
+## Что сознательно не трогаем
+
+- Нижние табы/вкладки **не возвращаем** — кейс их запрещает для экрана пожилого.
+- Memory suite / флэш-карты остаются доступны из «Состояние» и демо-панели.
