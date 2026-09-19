@@ -187,30 +187,42 @@ export type Database = {
       }
       emergency_events: {
         Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
           cancelled_at: string | null
+          confirmed_at: string | null
           elderly_profile_id: string
           id: string
           metadata: Json | null
+          notified_at: string | null
           resolved_at: string | null
           status: string
           triggered_at: string | null
           type: string
         }
         Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
           cancelled_at?: string | null
+          confirmed_at?: string | null
           elderly_profile_id: string
           id?: string
           metadata?: Json | null
+          notified_at?: string | null
           resolved_at?: string | null
           status?: string
           triggered_at?: string | null
           type: string
         }
         Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
           cancelled_at?: string | null
+          confirmed_at?: string | null
           elderly_profile_id?: string
           id?: string
           metadata?: Json | null
+          notified_at?: string | null
           resolved_at?: string | null
           status?: string
           triggered_at?: string | null
@@ -680,6 +692,22 @@ export type Database = {
         Returns: {
           elder_display_name: string
         }[]
+      }
+      acknowledge_alert: {
+        Args: { p_event_id: string }
+        Returns: Database['public']['Tables']['emergency_events']['Row']
+      }
+      cancel_alert: {
+        Args: { p_event_id: string }
+        Returns: Database['public']['Tables']['emergency_events']['Row']
+      }
+      confirm_alert: {
+        Args: { p_event_id: string }
+        Returns: Database['public']['Tables']['emergency_events']['Row']
+      }
+      create_alert: {
+        Args: { p_metadata?: Json; p_type: string }
+        Returns: Database['public']['Tables']['emergency_events']['Row']
       }
       is_linked_caregiver: { Args: { elder_id: string }; Returns: boolean }
     }

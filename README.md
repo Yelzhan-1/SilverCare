@@ -91,8 +91,50 @@ Supabase Dashboard → Authentication → Providers → Email.
   использует (данные лекарств/памяти пока в localStorage), поэтому это
   сознательно отложено до спринта, который реально подключит эти данные к
   Supabase.
-- Web Push / реальный SOS-бэкенд, редизайн продукта и парная игра памяти — не
-  затронуты этим спринтом (см. `tasks/plan.md`).
+- Редизайн продукта и парная игра памяти — следующие спринты (см. `tasks/plan.md`).
+
+## SOS, Realtime и Web Push (Sprint B+C)
+
+Цепочка: **SOS на телефоне подопечного → 15 с «Вы в порядке?» → отмена или timeout → строка в `emergency_events` → Realtime у опекуна + Web Push**.
+
+Это не вызов скорой. Без сети UI честно пишет «онлайн-уведомления недоступны».
+
+### Руками: ключи VAPID
+
+1. Сгенерируйте пару (один раз):
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+2. Публичный ключ — в `.env` (только public):
+
+```
+VITE_VAPID_PUBLIC_KEY=BHxxxxxxxx
+```
+
+3. Секреты Edge (Dashboard → Edge Functions → Secrets **или** CLI):
+
+```bash
+npx supabase secrets set VAPID_PUBLIC_KEY=BHxxxxxxxx --project-ref oyinjdprggupasmtkzoh
+npx supabase secrets set VAPID_PRIVATE_KEY=xxxxxxxx --project-ref oyinjdprggupasmtkzoh
+npx supabase secrets set VAPID_SUBJECT=mailto:you@example.com --project-ref oyinjdprggupasmtkzoh
+```
+
+`VAPID_PRIVATE_KEY` никогда не кладите в Vite / git / frontend.
+
+4. Если после регистрации видите «Проверьте почту» — выключите Confirm email в Auth для демо.
+
+### Демо на двух телефонах (§33)
+
+Android Chrome предпочтителен (Web Push). Два аккаунта уже связаны по коду из Sprint A.
+
+1. **Телефон A (подопечный)** — войдите, главный экран, SOS / «Помощь».
+2. Экран **«Вы в порядке?»**, таймер 15 с. «Я В ПОРЯДКЕ» → `cancelled`. Без ответа или «НУЖНА ПОМОЩЬ» → `confirmed` → Edge `emergency-alert` → `notified`.
+3. **Телефон B (опекун)** — войдите, разрешите уведомления. Карточка «Тревоги подопечного» обновится через Realtime; если вкладка закрыта — придёт Web Push (после шага с VAPID).
+4. Повторный confirm того же `event_id` **не** шлёт пачку пушей: Edge обновляет статус атомарно.
+
+Демо-панель «Ещё → Демо для жюри → Таймер 15 сек» на аккаунте подопечного запускает тот же backend-flow.
 
 ## Структура
 
@@ -101,8 +143,8 @@ Supabase Dashboard → Authentication → Providers → Email.
 - `src/repositories/authRepository.ts` — вся работа с Auth/`profiles`/
   `elderly_profiles`/`caregiver_profiles`/`family_links`.
 - `src/components/auth/` — `AuthScreen`, `RoleOnboardingScreen`.
-- `supabase/migrations/` — SQL-миграции (001-003 — исходная схема/RLS/индексы,
-  004–005 — фиксы Sprint A: безопасный invite RPC, unique sub-profiles,
-  `profiles.id` → `auth.users`).
+- `src/repositories/alertRepository.ts` — RPC create/cancel/confirm + Edge dispatch.
+- `supabase/functions/emergency-alert` и `send-push` — реальный Web Push (VAPID private только в Edge secrets).
+- `supabase/migrations/` — 001–003 схема; 004–005 Sprint A; 006 Sprint B+C alerts.
 - `DESIGN.md` — токены claymorphism-дизайна.
 - `tasks/plan.md` — полный план спринтов.

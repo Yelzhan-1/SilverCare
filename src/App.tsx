@@ -429,10 +429,10 @@ export default function App() {
   // Trigger manual SOS
   const handleOpenEmergency = () => {
     audioAlarmService.triggerHaptic(50);
-    emergencyService.startCountdown(
+    void emergencyService.startCountdown(
       'manual_sos',
       { reason: 'Нажата кнопка SOS на главном экране' },
-      45
+      15
     );
     setIsEmergencyExplicitOpen(true);
   };
@@ -562,6 +562,8 @@ export default function App() {
         remainingSeconds={emergencySnapshot.remainingSeconds}
         onClose={() => setIsEmergencyExplicitOpen(false)}
         isCaregiverView={currentRole === 'caregiver'}
+        online={emergencySnapshot.online}
+        lastError={emergencySnapshot.lastError}
       />
 
       {/* COMPREHENSIVE MEMORY SUITE MODAL (Picture, logic, attention, route) */}

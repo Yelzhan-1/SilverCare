@@ -1,6 +1,11 @@
-import { emergencyRepository } from '../../repositories/emergencyRepository';
-import { EmergencyEvent, EmergencyEventType, EmergencyEventStatus } from '../../types/silvercare';
+import { EmergencyEvent, EmergencyEventType } from '../../types/silvercare';
 import { audioAlarmService } from '../audioAlarmService';
+import {
+  alertRepository,
+  COUNTDOWN_SECONDS,
+  isOnline,
+  type AlertRow,
+} from '../../repositories/alertRepository';
 
 export type EmergencyStateMachineState =
   | 'NORMAL'
@@ -11,43 +16,51 @@ export type EmergencyStateMachineState =
   | 'CAREGIVER_NOTIFIED'
   | 'ACKNOWLEDGED'
   | 'RESOLVED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'OFFLINE';
 
 export interface EmergencySnapshot {
   event: EmergencyEvent | null;
   state: EmergencyStateMachineState;
   remainingSeconds: number;
+  online: boolean;
+  lastError: string | null;
 }
 
 type EmergencyListener = (snapshot: EmergencySnapshot) => void;
+
+function toUiEvent(row: AlertRow): EmergencyEvent {
+  const metadata = (row.metadata ?? {}) as EmergencyEvent['metadata'];
+  return {
+    id: row.id,
+    elderlyProfileId: row.elderly_profile_id,
+    type: row.type as EmergencyEventType,
+    status: row.status as EmergencyEvent['status'],
+    triggeredAt: row.triggered_at ?? new Date().toISOString(),
+    cancelledAt: row.cancelled_at ?? undefined,
+    resolvedAt: row.resolved_at ?? undefined,
+    acknowledgedBy: row.acknowledged_by ?? undefined,
+    metadata,
+  };
+}
 
 class EmergencyService {
   private currentState: EmergencyStateMachineState = 'NORMAL';
   private activeEvent: EmergencyEvent | null = null;
   private timerId: number | null = null;
   private targetTimestamp: number | null = null;
-  private remainingSeconds: number = 0;
+  private remainingSeconds = 0;
   private listeners: Set<EmergencyListener> = new Set();
-  private broadcastChannel: BroadcastChannel | null = null;
-
-  constructor() {
-    try {
-      this.broadcastChannel = new BroadcastChannel('silvercare_emergency_channel');
-      this.broadcastChannel.onmessage = (msg) => {
-        if (msg.data?.type === 'SYNC_EMERGENCY') {
-          this.syncFromBroadcast(msg.data.event, msg.data.state);
-        }
-      };
-    } catch {
-      // BroadcastChannel might not be supported in some embedded iframes
-    }
-  }
+  private lastError: string | null = null;
+  private dispatching = false;
 
   getSnapshot(): EmergencySnapshot {
     return {
       event: this.activeEvent,
       state: this.currentState,
       remainingSeconds: this.remainingSeconds,
+      online: isOnline(),
+      lastError: this.lastError,
     };
   }
 
@@ -62,23 +75,6 @@ class EmergencyService {
   private notify() {
     const snapshot = this.getSnapshot();
     this.listeners.forEach((l) => l(snapshot));
-    if (this.broadcastChannel) {
-      try {
-        this.broadcastChannel.postMessage({
-          type: 'SYNC_EMERGENCY',
-          event: this.activeEvent,
-          state: this.currentState,
-        });
-      } catch {
-        // silent fallback
-      }
-    }
-  }
-
-  private syncFromBroadcast(event: EmergencyEvent | null, state: EmergencyStateMachineState) {
-    this.activeEvent = event;
-    this.currentState = state;
-    this.notify();
   }
 
   getState(): EmergencyStateMachineState {
@@ -93,123 +89,149 @@ class EmergencyService {
     return this.remainingSeconds;
   }
 
-  /**
-   * Start 45s countdown (or custom seconds for demo)
-   */
-  async startCountdown(type: EmergencyEventType = 'missed_medication', metadata?: EmergencyEvent['metadata'], seconds = 45): Promise<void> {
+  async startCountdown(
+    type: EmergencyEventType = 'manual_sos',
+    metadata?: EmergencyEvent['metadata'],
+    seconds = COUNTDOWN_SECONDS
+  ): Promise<void> {
     this.stopTimer();
+    this.lastError = null;
 
-    const event = await emergencyRepository.createEvent(type, metadata);
-    this.activeEvent = event;
-    this.currentState = 'COUNTDOWN';
-    this.remainingSeconds = seconds;
-    this.targetTimestamp = Date.now() + seconds * 1000;
+    if (!isOnline()) {
+      this.currentState = 'OFFLINE';
+      this.lastError = 'Нет сети — онлайн-уведомления недоступны.';
+      this.notify();
+      return;
+    }
 
-    audioAlarmService.playEmergencyChime();
-    audioAlarmService.triggerHaptic([300, 150, 300]);
+    try {
+      const row = await alertRepository.createAlert(type, metadata ?? {});
+      this.activeEvent = toUiEvent(row);
+      this.currentState = 'COUNTDOWN';
+      this.remainingSeconds = seconds;
+      this.targetTimestamp = Date.now() + seconds * 1000;
 
-    this.timerId = window.setInterval(() => {
-      if (!this.targetTimestamp) return;
-      const diff = Math.max(0, Math.ceil((this.targetTimestamp - Date.now()) / 1000));
-      this.remainingSeconds = diff;
+      audioAlarmService.playEmergencyChime();
+      audioAlarmService.triggerHaptic([300, 150, 300]);
 
-      if (diff <= 0) {
-        this.stopTimer();
-        this.transitionToAlertCreated();
-      } else {
-        this.notify();
-      }
-    }, 1000);
+      this.timerId = window.setInterval(() => {
+        if (!this.targetTimestamp) return;
+        const diff = Math.max(0, Math.ceil((this.targetTimestamp - Date.now()) / 1000));
+        this.remainingSeconds = diff;
+        if (diff <= 0) {
+          this.stopTimer();
+          void this.confirmAndNotify();
+        } else {
+          this.notify();
+        }
+      }, 1000);
 
-    this.notify();
+      this.notify();
+    } catch (err) {
+      this.currentState = 'OFFLINE';
+      this.lastError = err instanceof Error ? err.message : 'Не удалось создать тревогу.';
+      this.notify();
+    }
   }
 
-  private async transitionToAlertCreated() {
-    if (!this.activeEvent) return;
+  private async confirmAndNotify(): Promise<void> {
+    if (!this.activeEvent || this.dispatching) return;
+    this.dispatching = true;
     this.currentState = 'ALERT_CREATED';
-    this.activeEvent = await emergencyRepository.updateEventStatus(this.activeEvent.id, 'notified');
-    this.currentState = 'CAREGIVER_NOTIFIED';
-
-    audioAlarmService.playEmergencyChime();
-    audioAlarmService.triggerHaptic([500, 200, 500, 200, 500]);
-
     this.notify();
+
+    if (!isOnline()) {
+      this.currentState = 'OFFLINE';
+      this.lastError = 'Нет сети — уведомление опекуну не отправлено.';
+      this.dispatching = false;
+      this.notify();
+      return;
+    }
+
+    try {
+      const row = await alertRepository.confirmAndDispatch(this.activeEvent.id);
+      this.activeEvent = toUiEvent(row);
+      this.currentState = 'CAREGIVER_NOTIFIED';
+      audioAlarmService.playEmergencyChime();
+      audioAlarmService.triggerHaptic([500, 200, 500, 200, 500]);
+    } catch (err) {
+      this.lastError = err instanceof Error ? err.message : 'Не удалось отправить уведомление.';
+      this.currentState = 'OFFLINE';
+    } finally {
+      this.dispatching = false;
+      this.notify();
+    }
   }
 
-  /**
-   * Senior pressed "✅ ДА, Я В ПОРЯДКЕ"
-   */
   async cancelEmergency(): Promise<void> {
     this.stopTimer();
     if (this.activeEvent) {
-      await emergencyRepository.updateEventStatus(this.activeEvent.id, 'cancelled');
+      try {
+        const row = await alertRepository.cancelAlert(this.activeEvent.id);
+        this.activeEvent = toUiEvent(row);
+      } catch (err) {
+        this.lastError = err instanceof Error ? err.message : 'Не удалось отменить тревогу.';
+      }
     }
-    this.activeEvent = null;
     this.currentState = 'CANCELLED';
     this.remainingSeconds = 0;
     audioAlarmService.playSuccessChime();
     audioAlarmService.triggerHaptic(50);
-
     this.notify();
 
     setTimeout(() => {
+      this.activeEvent = null;
       this.currentState = 'NORMAL';
       this.notify();
     }, 2000);
   }
 
-  /**
-   * Senior pressed "🆘 МНЕ НУЖНА ПОМОЩЬ"
-   */
-  async triggerManualSos(reason = 'Экстренный вызов от пользователя'): Promise<void> {
+  async triggerManualSos(reason = 'Подопечный нажал «Нужна помощь»'): Promise<void> {
     this.stopTimer();
-    const event = await emergencyRepository.createEvent('manual_sos', { reason });
-    this.activeEvent = event;
-    await emergencyRepository.updateEventStatus(event.id, 'notified');
-    this.currentState = 'CAREGIVER_NOTIFIED';
-
-    audioAlarmService.playEmergencyChime();
-    audioAlarmService.triggerHaptic([500, 200, 500, 200, 500]);
-    this.notify();
+    if (!this.activeEvent) {
+      await this.startCountdown('manual_sos', { reason }, 0);
+    }
+    await this.confirmAndNotify();
   }
 
-  /**
-   * Fall detection demo
-   */
   async triggerFallDetectionDemo(): Promise<void> {
-    await this.startCountdown('fall_detection', { reason: 'Обнаружено резкое изменение положения (симуляция)' }, 20);
+    await this.startCountdown(
+      'fall_detection',
+      { reason: 'Демо: симуляция падения (не медицинский диагноз)' },
+      COUNTDOWN_SECONDS
+    );
   }
 
-  /**
-   * Caregiver pressed "✅ Я занимаюсь ситуацией"
-   */
-  async acknowledgeByCaregiver(caregiverName = 'Сын Алексей'): Promise<void> {
-    if (this.activeEvent) {
-      this.activeEvent = await emergencyRepository.updateEventStatus(this.activeEvent.id, 'acknowledged', {
-        acknowledgedBy: caregiverName,
-      });
+  async acknowledgeByCaregiver(): Promise<void> {
+    if (!this.activeEvent) return;
+    try {
+      const row = await alertRepository.acknowledgeAlert(this.activeEvent.id);
+      this.activeEvent = toUiEvent(row);
       this.currentState = 'ACKNOWLEDGED';
       audioAlarmService.playSuccessChime();
       this.notify();
+    } catch (err) {
+      this.lastError = err instanceof Error ? err.message : 'Не удалось подтвердить.';
+      this.notify();
     }
   }
 
-  /**
-   * Caregiver or system marks emergency resolved
-   */
-  async resolveEmergency(): Promise<void> {
-    this.stopTimer();
-    if (this.activeEvent) {
-      await emergencyRepository.updateEventStatus(this.activeEvent.id, 'resolved');
-    }
-    this.activeEvent = null;
-    this.currentState = 'RESOLVED';
+  applyRemoteEvent(row: AlertRow): void {
+    this.activeEvent = toUiEvent(row);
+    if (row.status === 'acknowledged') this.currentState = 'ACKNOWLEDGED';
+    else if (row.status === 'notified' || row.status === 'confirmed') this.currentState = 'CAREGIVER_NOTIFIED';
+    else if (row.status === 'cancelled') this.currentState = 'CANCELLED';
+    else if (row.status === 'resolved') this.currentState = 'RESOLVED';
+    else if (row.status === 'countdown') this.currentState = 'COUNTDOWN';
     this.notify();
+  }
 
-    setTimeout(() => {
-      this.currentState = 'NORMAL';
-      this.notify();
-    }, 1500);
+  clear(): void {
+    this.stopTimer();
+    this.activeEvent = null;
+    this.currentState = 'NORMAL';
+    this.lastError = null;
+    this.notify();
   }
 
   private stopTimer() {

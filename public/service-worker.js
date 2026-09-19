@@ -42,12 +42,13 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const title = data.title || '💊 SilverCare: Напоминание';
+  const title = data.title || 'SilverCare';
   const options = {
-    body: data.body || 'Пора принять лекарство. Откройте приложение для подтверждения.',
+    body: data.body || 'Откройте приложение.',
     icon: data.icon || '/medications/pill-white.png',
     badge: '/medications/pill-white.png',
-    vibrate: [300, 100, 300],
+    vibrate: [300, 100, 300, 100, 300],
+    tag: data.tag || 'silvercare',
     data: { url: data.url || '/' },
   };
 

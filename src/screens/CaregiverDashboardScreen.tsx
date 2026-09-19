@@ -28,13 +28,13 @@ import {
 } from '../types/silvercare';
 import { medicationRepository } from '../repositories/medicationRepository';
 import { familyRepository, FamilyMemberInfo } from '../repositories/familyRepository';
-import { emergencyService } from '../services/emergency/emergencyService';
 import { locationService, RouteInfo } from '../services/location/locationService';
 import { notificationService } from '../services/notifications/notificationService';
 import { audioAlarmService } from '../services/audioAlarmService';
 import { speechService } from '../services/speechService';
 import { TimeInput24 } from '../components/TimeInput24';
 import { authRepository, LinkedElderInfo } from '../repositories/authRepository';
+import { AlertInbox } from '../features/safety/AlertInbox';
 import { AlertCircle, Check, Link2 } from 'lucide-react';
 
 export interface CaregiverDashboardScreenProps {
@@ -134,7 +134,9 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
   };
 
   const handleSimulateEmergency = () => {
-    emergencyService.startCountdown('missed_medication', { medicationName: 'Аспирин Кардио' }, 45);
+    notificationService.showNotification('Запустите SOS у подопечного', {
+      body: 'Тревога пишется в базу с его аккаунта. Здесь она появится через Realtime.',
+    });
   };
 
   return (
@@ -178,6 +180,7 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
             database, or lets the caregiver redeem an invite code right here
             if they skipped this step during onboarding. */}
         {userId && <LinkedElderCard userId={userId} />}
+        {userId && <AlertInbox userId={userId} />}
 
         {/* ELDER STATUS HERO CARD */}
         <section className="bg-white rounded-[32px] p-5 sm:p-6 shadow-xs border border-black/[0.06] space-y-4">
