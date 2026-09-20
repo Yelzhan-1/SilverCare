@@ -33,4 +33,11 @@ jobs:
         run: npm run lint
 
       - name: Build
+        env:
+          # Shape-valid CI-only dummies so check-env.mjs can pass.
+          # NOT real credentials — do not copy these to Vercel.
+          # Production/preview on Vercel must use real Project Settings env.
+          VITE_SUPABASE_URL: https://ci-build.supabase.co
+          VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1jaSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxfQ.ci-build-not-a-secret
+          VITE_VAPID_PUBLIC_KEY: CI_BUILD_VAPID_PUBLIC_KEY
         run: npm run build
