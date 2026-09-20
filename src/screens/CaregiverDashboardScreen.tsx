@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Heart, Phone } from 'lucide-react';
+import { Heart, Phone, Mic, Settings } from 'lucide-react';
 import { Medication, MedicationSchedule } from '../types/silvercare';
 import { medicationRepository } from '../repositories/medicationRepository';
 import { AlertInbox } from '../features/safety/AlertInbox';
@@ -12,6 +12,7 @@ export interface CaregiverDashboardScreenProps {
   onBackToElderly?: () => void;
   onOpenDemoMenu?: () => void;
   onOpenSettings?: () => void;
+  onOpenVoiceModal?: () => void;
   onTriggerDemoAlarm?: () => void;
   userId?: string;
 }
@@ -20,6 +21,8 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
   onSwitchToElderMode,
   onBackToElderly,
   onOpenDemoMenu,
+  onOpenSettings,
+  onOpenVoiceModal,
   userId,
 }) => {
   const handleGoBack = () => {
@@ -53,6 +56,16 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                aria-label="Настройки и лекарства"
+                className="clay-tap min-h-11 min-w-11 px-3 rounded-xl bg-clay-surface-sunken text-clay-ink font-bold text-sm cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-primary"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={onOpenDemoMenu}
@@ -74,6 +87,25 @@ export const CaregiverDashboardScreen: React.FC<CaregiverDashboardScreenProps> =
       <main className="max-w-3xl mx-auto p-4 sm:p-6 space-y-4">
         {userId && <LinkedElderCard userId={userId} />}
         {userId && <AlertInbox userId={userId} />}
+        {onOpenVoiceModal && (
+          <section className="bg-clay-surface rounded-clay-lg p-5 shadow-clay-spotlight space-y-3">
+            <div className="flex items-center gap-2">
+              <Mic className="w-5 h-5 text-clay-primary" aria-hidden="true" />
+              <h2 className="text-xl font-black text-clay-ink">Голос родных</h2>
+            </div>
+            <p className="text-sm font-semibold text-clay-ink-soft">
+              Запишите фразу близкого — подопечный услышит её на будильнике лекарства. Хранится на
+              этом устройстве.
+            </p>
+            <button
+              type="button"
+              onClick={onOpenVoiceModal}
+              className="clay-tap w-full min-h-14 rounded-clay-md bg-clay-primary text-white font-black shadow-clay-primary cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-ink"
+            >
+              Записать голос для будильника
+            </button>
+          </section>
+        )}
         <MissedIntakesCard />
 
         <section className="bg-clay-surface rounded-clay-lg p-5 shadow-clay-spotlight flex items-center justify-between gap-3">

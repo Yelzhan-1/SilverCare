@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Bell, Check, Phone } from 'lucide-react';
+import { AlertTriangle, Bell, Check, Phone, Volume2 } from 'lucide-react';
 import { alertRepository, type AlertRow } from '../../repositories/alertRepository';
 import { subscribeCaregiverPush } from '../../services/pushService';
 import { emergencyService } from '../../services/emergency/emergencyService';
+import { audioAlarmService } from '../../services/audioAlarmService';
 
 interface AlertInboxProps {
   userId: string;
@@ -37,6 +38,8 @@ function typeLabel(type: string): string {
       return 'Резкое движение';
     case 'manual_sos':
       return 'SOS';
+    case 'inactivity':
+      return 'Необычный ночной звук';
     default:
       return type;
   }
@@ -46,14 +49,28 @@ export const AlertInbox: React.FC<AlertInboxProps> = ({ userId }) => {
   const [rows, setRows] = useState<AlertRow[]>([]);
   const [pushStatus, setPushStatus] = useState<string>('Готовим уведомления…');
   const [error, setError] = useState<string | null>(null);
+  const [audioHint, setAudioHint] = useState(!audioAlarmService.isArmed());
+
+  const applyIfActiveSos = (list: AlertRow[]) => {
+    const activeSos = list.find(
+      (row) => ACTIVE.has(row.status) && row.type !== 'missed_medication'
+    );
+    if (activeSos) emergencyService.applyRemoteEvent(activeSos);
+  };
 
   const refresh = async () => {
     try {
       const list = await alertRepository.listAlerts(20);
       setRows(list);
+      applyIfActiveSos(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось загрузить историю.');
     }
+  };
+
+  const armCaregiverAudio = async () => {
+    const ok = await audioAlarmService.armAudio();
+    setAudioHint(!ok);
   };
 
   useEffect(() => {
@@ -81,10 +98,12 @@ export const AlertInbox: React.FC<AlertInboxProps> = ({ userId }) => {
   useEffect(() => {
     let cancelled = false;
     subscribeCaregiverPush(userId)
-      .then((result) => {
+      .then(async (result) => {
         if (cancelled) return;
-        if (result === 'ok') setPushStatus('Web Push включён на этом устройстве');
-        else if (result === 'no-vapid') setPushStatus('Нет VITE_VAPID_PUBLIC_KEY — push не подписан');
+        if (result === 'ok') {
+          setPushStatus('Web Push включён на этом устройстве');
+          await armCaregiverAudio();
+        } else if (result === 'no-vapid') setPushStatus('Нет VITE_VAPID_PUBLIC_KEY — push не подписан');
         else if (result === 'denied') setPushStatus('Разрешите уведомления в браузере');
         else setPushStatus('Этот браузер не поддерживает Web Push');
       })
@@ -114,6 +133,17 @@ export const AlertInbox: React.FC<AlertInboxProps> = ({ userId }) => {
         </p>
       )}
 
+      {audioHint && (
+        <button
+          type="button"
+          onClick={() => void armCaregiverAudio()}
+          className="clay-tap w-full min-h-11 px-3 rounded-xl bg-clay-warning/15 text-clay-ink text-sm font-bold flex items-center justify-center gap-2 cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-ink"
+        >
+          <Volume2 className="w-4 h-4" />
+          Нажмите, чтобы включить звук SOS (нужно на iPhone)
+        </button>
+      )}
+
       {active ? (
         <div id="guardian-active-alert" className="p-3 rounded-clay-md bg-clay-danger/10 space-y-2">
           <div className="flex items-center gap-2 text-clay-danger font-black text-sm">
@@ -129,7 +159,17 @@ export const AlertInbox: React.FC<AlertInboxProps> = ({ userId }) => {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => void alertRepository.acknowledgeAlert(active.id).then(refresh)}
+              onClick={() => {
+                const current = emergencyService.getActiveEvent();
+                if (current?.id === active.id) {
+                  void emergencyService.acknowledgeByCaregiver().then(refresh);
+                  return;
+                }
+                void alertRepository.acknowledgeAlert(active.id).then(() => {
+                  audioAlarmService.stopAlarmLoop();
+                  void refresh();
+                });
+              }}
               className="clay-tap min-h-11 px-3 bg-clay-primary text-white text-sm font-bold rounded-xl focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-ink"
             >
               <Check className="w-4 h-4 inline mr-1" />

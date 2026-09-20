@@ -1,9 +1,13 @@
+export type AlarmLoopType = 'birds' | 'chime' | 'emergency';
+
 class AudioAlarmService {
   private audioCtx: AudioContext | null = null;
   private isAlarmPlaying = false;
   private alarmInterval: number | null = null;
   private vibrateInterval: number | null = null;
   private customAudioElement: HTMLAudioElement | null = null;
+  private audioArmed = false;
+  private currentLoopType: AlarmLoopType | null = null;
 
   private getAudioContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -19,6 +23,31 @@ class AudioAlarmService {
       this.audioCtx.resume().catch(() => {});
     }
     return this.audioCtx;
+  }
+
+  /**
+   * iOS / Safari: AudioContext stays silent until a user gesture (or the
+   * notification-permission tap). Play a 1-sample buffer so later SOS loops work.
+   */
+  public async armAudio(): Promise<boolean> {
+    const ctx = this.getAudioContext();
+    if (!ctx) return false;
+    try {
+      await ctx.resume();
+      const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+      this.audioArmed = ctx.state === 'running';
+      return this.audioArmed;
+    } catch {
+      return false;
+    }
+  }
+
+  public isArmed(): boolean {
+    return this.audioArmed && this.audioCtx?.state === 'running';
   }
 
   /**
@@ -208,41 +237,41 @@ class AudioAlarmService {
 
   /**
    * Starts repeating alarm sound until dismissed.
-   * By default uses gentle birdsong ('birds') or standard chime ('chime').
+   * 'emergency' is the loud SOS loop for the caregiver second device.
    */
-  public startAlarmLoop(soundType: 'birds' | 'chime' = 'birds') {
-    if (this.isAlarmPlaying) return;
-    this.isAlarmPlaying = true;
-
-    // Play first sound phrase immediately
-    if (soundType === 'birds') {
-      this.playBirdsSong();
-    } else {
-      this.playChime();
+  public startAlarmLoop(soundType: AlarmLoopType = 'birds', options?: { force?: boolean }) {
+    if (this.isAlarmPlaying) {
+      if (!options?.force && this.currentLoopType === soundType) return;
+      this.stopAlarmLoop();
     }
-    this.triggerHaptic([200, 100, 200]);
+    this.isAlarmPlaying = true;
+    this.currentLoopType = soundType;
 
-    // Loop interval: 2.8s for birdsong, 2.4s for chime
-    const intervalMs = soundType === 'birds' ? 2800 : 2400;
+    this.playLoopPhrase(soundType);
+    this.triggerHaptic(soundType === 'emergency' ? [300, 120, 300, 120, 300] : [200, 100, 200]);
+
+    const intervalMs = soundType === 'emergency' ? 700 : soundType === 'birds' ? 2800 : 2400;
 
     this.alarmInterval = window.setInterval(() => {
       if (!this.isAlarmPlaying) return;
-      if (soundType === 'birds') {
-        this.playBirdsSong();
-      } else {
-        this.playChime();
-      }
+      this.playLoopPhrase(soundType);
     }, intervalMs);
 
-    // Loop gentle haptic vibration if supported
     this.vibrateInterval = window.setInterval(() => {
       if (!this.isAlarmPlaying) return;
-      this.triggerHaptic([250, 150, 250]);
+      this.triggerHaptic(soundType === 'emergency' ? [280, 120, 280] : [250, 150, 250]);
     }, intervalMs);
+  }
+
+  private playLoopPhrase(soundType: AlarmLoopType) {
+    if (soundType === 'birds') this.playBirdsSong();
+    else if (soundType === 'emergency') this.playEmergencyChime();
+    else this.playChime();
   }
 
   public stopAlarmLoop() {
     this.isAlarmPlaying = false;
+    this.currentLoopType = null;
     if (this.alarmInterval !== null) {
       clearInterval(this.alarmInterval);
       this.alarmInterval = null;
@@ -285,7 +314,7 @@ class AudioAlarmService {
       osc.frequency.setValueAtTime(880, now);
       osc.frequency.setValueAtTime(440, now + 0.15);
       osc.frequency.setValueAtTime(880, now + 0.3);
-      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.setValueAtTime(0.32, now);
       gain.gain.linearRampToValueAtTime(0.01, now + 0.45);
       osc.connect(gain);
       gain.connect(ctx.destination);

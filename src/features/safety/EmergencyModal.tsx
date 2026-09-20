@@ -1,10 +1,11 @@
-import React from 'react';
-import { AlertTriangle, Phone, Check, HeartHandshake } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AlertTriangle, Phone, Check, HeartHandshake, Volume2 } from 'lucide-react';
 import {
   emergencyService,
   EmergencyStateMachineState,
 } from '../../services/emergency/emergencyService';
 import { EmergencyEvent } from '../../types/silvercare';
+import { audioAlarmService } from '../../services/audioAlarmService';
 
 interface EmergencyModalProps {
   isOpen: boolean;
@@ -27,6 +28,18 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   online = true,
   lastError = null,
 }) => {
+  const [needsAudioTap, setNeedsAudioTap] = useState(() => !audioAlarmService.isArmed());
+
+  useEffect(() => {
+    if (!isOpen || !isCaregiverView) return;
+    if (state === 'ACKNOWLEDGED' || state === 'CANCELLED' || state === 'RESOLVED') {
+      audioAlarmService.stopAlarmLoop();
+      return;
+    }
+    audioAlarmService.startAlarmLoop('emergency', { force: true });
+    setNeedsAudioTap(!audioAlarmService.isArmed());
+  }, [isOpen, isCaregiverView, state]);
+
   if (!isOpen) return null;
 
   const isCountdown = state === 'COUNTDOWN';
@@ -129,11 +142,26 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
 
         {isCaregiverView && (
           <div className="space-y-3 pt-3">
+            {needsAudioTap && (
+              <button
+                type="button"
+                onClick={() => {
+                  void audioAlarmService.armAudio().then((ok) => {
+                    setNeedsAudioTap(!ok);
+                    if (ok) audioAlarmService.startAlarmLoop('emergency', { force: true });
+                  });
+                }}
+                className="clay-tap w-full min-h-11 bg-clay-warning/20 text-clay-ink font-bold text-sm rounded-clay-md flex items-center justify-center gap-2 cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-ink"
+              >
+                <Volume2 className="w-5 h-5" />
+                Нажмите, чтобы включить звук тревоги
+              </button>
+            )}
             {!isAcknowledged ? (
               <button
                 type="button"
                 onClick={() => void emergencyService.acknowledgeByCaregiver()}
-                className="clay-tap w-full min-h-[80px] bg-clay-primary hover:brightness-105 text-white font-black text-lg rounded-clay-md flex items-center justify-center gap-2 shadow-clay-primary cursor-pointer"
+                className="clay-tap w-full min-h-[80px] bg-clay-primary hover:brightness-105 active:brightness-95 text-white font-black text-lg rounded-clay-md flex items-center justify-center gap-2 shadow-clay-primary cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-ink"
               >
                 <HeartHandshake className="w-6 h-6" />
                 <span>Я УЖЕ ПРОВЕРЯЮ</span>
@@ -155,7 +183,7 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-full h-12 min-h-11 bg-clay-surface-sunken text-clay-ink font-bold rounded-clay-md"
+              className="clay-tap w-full h-12 min-h-11 bg-clay-surface-sunken hover:brightness-95 active:brightness-90 text-clay-ink font-bold rounded-clay-md cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-primary"
             >
               Закрыть
             </button>
