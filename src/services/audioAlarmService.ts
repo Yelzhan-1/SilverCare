@@ -205,32 +205,45 @@ class AudioAlarmService {
   }
 
   /**
-   * Plays a custom audio recording URL or Base64 data
+   * Plays a custom audio recording URL or Base64 data.
+   * Returns false if the format/autoplay fails so callers can fall back to TTS.
    */
-  public playCustomAudio(audioUrl: string): Promise<void> {
+  public async playCustomAudio(audioUrl: string): Promise<boolean> {
+    await this.armAudio();
+    this.stopCustomAudio();
     return new Promise((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        resolve(ok);
+      };
+      const timeout = window.setTimeout(() => finish(false), 20000);
       try {
-        if (this.customAudioElement) {
-          this.customAudioElement.pause();
-          this.customAudioElement = null;
-        }
-
-        const audio = new Audio(audioUrl);
+        const audio = new Audio();
         this.customAudioElement = audio;
+        audio.preload = 'auto';
         audio.volume = 1.0;
+        audio.setAttribute('playsinline', 'true');
         audio.onended = () => {
-          this.customAudioElement = null;
-          resolve();
+          if (this.customAudioElement === audio) this.customAudioElement = null;
+          finish(true);
         };
         audio.onerror = () => {
-          this.customAudioElement = null;
-          resolve();
+          console.warn('Custom audio playback failed');
+          if (this.customAudioElement === audio) this.customAudioElement = null;
+          finish(false);
         };
-        audio.play().catch(() => {
-          resolve();
+        audio.src = audioUrl;
+        audio.play().catch((err) => {
+          console.warn('Custom audio play() rejected', err);
+          if (this.customAudioElement === audio) this.customAudioElement = null;
+          finish(false);
         });
-      } catch {
-        resolve();
+      } catch (err) {
+        console.warn('Custom audio setup failed', err);
+        finish(false);
       }
     });
   }
@@ -280,16 +293,20 @@ class AudioAlarmService {
       clearInterval(this.vibrateInterval);
       this.vibrateInterval = null;
     }
-    if (this.customAudioElement) {
-      this.customAudioElement.pause();
-      this.customAudioElement = null;
-    }
     if (typeof window !== 'undefined' && 'navigator' in window && 'vibrate' in navigator) {
       try {
         navigator.vibrate(0);
       } catch {
         // ignore
       }
+    }
+  }
+
+  public stopCustomAudio() {
+    if (this.customAudioElement) {
+      this.customAudioElement.pause();
+      this.customAudioElement.src = '';
+      this.customAudioElement = null;
     }
   }
 

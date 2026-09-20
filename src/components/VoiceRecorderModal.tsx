@@ -32,6 +32,31 @@ const VOICE_TEXT_PRESETS = [
   'Дедушка, пора принять лекарство после еды.',
 ];
 
+function pickRecordingMime(): string {
+  const candidates = [
+    'audio/mp4',
+    'audio/mp4;codecs=mp4a.40.2',
+    'audio/aac',
+    'audio/wav',
+    'audio/webm;codecs=opus',
+    'audio/webm',
+  ];
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return '';
+  }
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? '';
+}
+
+function blobTypeFromRecorder(recorder: MediaRecorder, fallback: string): string {
+  const raw = recorder.mimeType || fallback;
+  if (raw.startsWith('audio/mp4')) return 'audio/mp4';
+  if (raw.startsWith('audio/aac')) return 'audio/aac';
+  if (raw.startsWith('audio/wav')) return 'audio/wav';
+  if (raw.startsWith('audio/mpeg')) return 'audio/mpeg';
+  if (raw.startsWith('audio/webm')) return 'audio/webm';
+  return raw || 'audio/mp4';
+}
+
 export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
   isOpen,
   onClose,
@@ -76,6 +101,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
     } else {
       stopRecording();
       audioAlarmService.stopAlarmLoop();
+      audioAlarmService.stopCustomAudio();
       speechService.stop();
     }
   }, [isOpen]);
@@ -99,7 +125,10 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const mimeType = pickRecordingMime();
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -109,7 +138,8 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const type = blobTypeFromRecorder(mediaRecorder, mimeType);
+        const audioBlob = new Blob(audioChunksRef.current, { type });
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
@@ -164,8 +194,11 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
   const handlePlayRecordedAudio = async () => {
     if (!recordedAudioUrl) return;
     setIsPlayingAudio(true);
-    await audioAlarmService.playCustomAudio(recordedAudioUrl);
+    const played = await audioAlarmService.playCustomAudio(recordedAudioUrl);
     setIsPlayingAudio(false);
+    if (!played) {
+      setMicError('Не удалось воспроизвести запись. Сохраните снова — на iPhone нужен AAC/MP4, не WebM.');
+    }
   };
 
   // DELETE RECORDED AUDIO

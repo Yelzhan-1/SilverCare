@@ -31,13 +31,17 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
   // Med alarm: recorded family voice, else RU TTS. Never birdsong.
   useEffect(() => {
     let cancelled = false;
+    void audioAlarmService.armAudio();
     audioAlarmService.playChime();
 
     const announce = async () => {
       if (cancelled) return;
       setIsSpeaking(true);
       if (customAudioUrl) {
-        await audioAlarmService.playCustomAudio(customAudioUrl);
+        const played = await audioAlarmService.playCustomAudio(customAudioUrl);
+        if (!played && !cancelled) {
+          await speechService.speakMedicationAlert(item.name, item.dosage);
+        }
       } else {
         await speechService.speakMedicationAlert(item.name, item.dosage);
       }
@@ -53,7 +57,7 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
     return () => {
       cancelled = true;
       clearInterval(interval);
-      audioAlarmService.stopAlarmLoop();
+      audioAlarmService.stopCustomAudio();
       speechService.stop();
     };
   }, [customAudioUrl, item.name, item.dosage]);
@@ -61,11 +65,16 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
   const playVoiceMessage = () => {
     setIsSpeaking(true);
     const done = () => setIsSpeaking(false);
-    if (customAudioUrl) {
-      void audioAlarmService.playCustomAudio(customAudioUrl).then(done);
-    } else {
-      void speechService.speakMedicationAlert(item.name, item.dosage).then(done);
-    }
+    void (async () => {
+      await audioAlarmService.armAudio();
+      if (customAudioUrl) {
+        const played = await audioAlarmService.playCustomAudio(customAudioUrl);
+        if (!played) await speechService.speakMedicationAlert(item.name, item.dosage);
+      } else {
+        await speechService.speakMedicationAlert(item.name, item.dosage);
+      }
+      done();
+    })();
   };
 
   // Re-listen / speak again button handler
@@ -76,6 +85,7 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
 
   // HONEST SNOOZE: stop sound now, caller re-triggers this alarm in ~5 minutes
   const handleSnoozeClick = () => {
+    audioAlarmService.stopCustomAudio();
     audioAlarmService.stopAlarmLoop();
     speechService.stop();
     audioAlarmService.triggerHaptic(30);
@@ -84,7 +94,7 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
 
   // ONE-CLICK CONFIRMATION
   const handleOneClickConfirm = () => {
-    // Stop sound and voice immediately
+    audioAlarmService.stopCustomAudio();
     audioAlarmService.stopAlarmLoop();
     speechService.stop();
 

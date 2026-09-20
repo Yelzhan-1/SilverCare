@@ -59,13 +59,7 @@ export const FaceIdVerifyPanel: React.FC<FaceIdVerifyPanelProps> = ({
     setSnapshot(null);
 
     const start = async () => {
-      const engine = await ensureFaceEngine();
-      if (cancelled) return;
-      if (engine === 'unavailable') {
-        setStatus('error');
-        setError('Детектор лиц недоступен в этом браузере.');
-        return;
-      }
+      void ensureFaceEngine();
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } },
@@ -76,10 +70,36 @@ export const FaceIdVerifyPanel: React.FC<FaceIdVerifyPanelProps> = ({
           return;
         }
         streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
+
+        let video = videoRef.current;
+        for (let i = 0; i < 8 && !video; i += 1) {
+          await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => resolve());
+          });
+          if (cancelled) {
+            stream.getTracks().forEach((t) => t.stop());
+            return;
+          }
+          video = videoRef.current;
         }
+        if (!video) {
+          setStatus('error');
+          setError('Камера включена, но превью не появилось. Нажмите «Повторить».');
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        video.srcObject = stream;
+        video.muted = true;
+        video.playsInline = true;
+        video.setAttribute('playsinline', 'true');
+        await video.play().catch((err) => {
+          if (!cancelled) {
+            setStatus('error');
+            setError(`${getMediaErrorMessage(err, 'camera')} Нажмите «Повторить».`);
+          }
+        });
+        if (cancelled) return;
+
         const loop = async () => {
           if (cancelled || !videoRef.current) return;
           const box = await detectFace(videoRef.current);
@@ -110,8 +130,10 @@ export const FaceIdVerifyPanel: React.FC<FaceIdVerifyPanelProps> = ({
         };
         void loop();
       } catch (err) {
-        setStatus('error');
-        setError(getMediaErrorMessage(err, 'camera'));
+        if (!cancelled) {
+          setStatus('error');
+          setError(`${getMediaErrorMessage(err, 'camera')} Нажмите «Повторить».`);
+        }
       }
     };
     void start();
@@ -135,11 +157,22 @@ export const FaceIdVerifyPanel: React.FC<FaceIdVerifyPanelProps> = ({
   return (
     <div className="flex flex-col items-center text-center py-4 px-1 space-y-4">
       <div className="relative w-44 h-44 rounded-clay-lg overflow-hidden border border-black/10 bg-clay-surface-sunken">
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          autoPlay
+          className={`w-full h-full object-cover scale-x-[-1] ${
+            status === 'success' && snapshot ? 'opacity-0' : 'opacity-100'
+          }`}
+        />
         {status === 'success' && snapshot ? (
-          <img src={snapshot} alt="" className="w-full h-full object-cover scale-x-[-1]" />
-        ) : (
-          <video ref={videoRef} playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
-        )}
+          <img
+            src={snapshot}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover scale-x-[-1]"
+          />
+        ) : null}
         {status === 'checking' || status === 'no-face' || status === 'starting' ? (
           <div className="pointer-events-none absolute inset-3 border-2 border-dashed border-clay-primary/70 rounded-clay-md" />
         ) : null}
@@ -176,7 +209,7 @@ export const FaceIdVerifyPanel: React.FC<FaceIdVerifyPanelProps> = ({
             {isGate ? 'Войти' : 'Готово'}
           </button>
         ) : null}
-        {(status === 'mismatch' || status === 'error' || status === 'no-face') && (
+        {status !== 'success' && (
           <button
             type="button"
             onClick={() => setAttempt((n) => n + 1)}
