@@ -54,6 +54,8 @@ class EmergencyService {
   private listeners: Set<EmergencyListener> = new Set();
   private lastError: string | null = null;
   private dispatching = false;
+  /** Last event the caregiver dismissed via Close. Same-id realtime echoes must not reopen. */
+  private dismissedEventId: string | null = null;
 
   getSnapshot(): EmergencySnapshot {
     return {
@@ -220,10 +222,21 @@ class EmergencyService {
   applyRemoteEvent(row: AlertRow): void {
     const isTerminal =
       row.status === 'acknowledged' || row.status === 'cancelled' || row.status === 'resolved';
+    const isActiveEcho =
+      row.status === 'notified' || row.status === 'confirmed' || row.status === 'countdown';
     // After caregiver dismiss (clear → NORMAL), do not reopen the overlay
     // from a stale acknowledged/cancelled/resolved realtime echo.
     if (isTerminal && this.currentState === 'NORMAL') {
       return;
+    }
+    // Same dismissed SOS re-delivered as notified/confirmed/countdown (or
+    // terminal) — ignore so Close stays closed. A *new* event id with an
+    // active status clears the dismiss memory and still opens the modal.
+    if (this.dismissedEventId && row.id === this.dismissedEventId && (isActiveEcho || isTerminal)) {
+      return;
+    }
+    if (isActiveEcho && this.dismissedEventId && row.id !== this.dismissedEventId) {
+      this.dismissedEventId = null;
     }
     this.activeEvent = toUiEvent(row);
     if (row.status === 'acknowledged') this.currentState = 'ACKNOWLEDGED';
@@ -236,6 +249,9 @@ class EmergencyService {
 
   clear(): void {
     this.stopTimer();
+    if (this.activeEvent?.id) {
+      this.dismissedEventId = this.activeEvent.id;
+    }
     this.activeEvent = null;
     this.currentState = 'NORMAL';
     this.lastError = null;

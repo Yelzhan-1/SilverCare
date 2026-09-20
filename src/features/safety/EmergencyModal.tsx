@@ -60,7 +60,7 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   return (
     <div
       id="emergency-modal-backdrop"
-      className="fixed inset-0 z-50 bg-black/85 ios-blur flex items-center justify-center p-4 font-sans select-none overflow-y-auto"
+      className="fixed inset-0 z-[70] bg-black/85 ios-blur flex items-center justify-center p-4 font-sans select-none overflow-y-auto"
     >
       <div
         id="emergency-modal-container"
