@@ -148,3 +148,9 @@ Android Chrome предпочтителен (Web Push). Два аккаунта 
 - `supabase/migrations/` — 001–003 схема; 004–005 Sprint A; 006 Sprint B+C alerts.
 - `DESIGN.md` — токены claymorphism-дизайна.
 - `tasks/plan.md` — полный план спринтов.
+
+## Документы для команды
+
+- [Описание](docs/ABOUT.md)
+- [Гайд и сценарий презентации](docs/TEAM-GUIDE.md)
+- Демо-логины: локально `Desktop/SilverCare-DEMO.txt` (не в репозитории)
