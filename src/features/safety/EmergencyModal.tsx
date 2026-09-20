@@ -27,7 +27,7 @@ export const EmergencyModal: React.FC<EmergencyModalProps> = ({
   online = true,
   lastError = null,
 }) => {
-  if (!isOpen && state === 'NORMAL') return null;
+  if (!isOpen) return null;
 
   const isCountdown = state === 'COUNTDOWN';
   const isAlerted = state === 'ALERT_CREATED' || state === 'CAREGIVER_NOTIFIED';

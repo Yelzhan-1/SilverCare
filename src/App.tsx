@@ -613,7 +613,14 @@ export default function App() {
         event={emergencySnapshot.event}
         state={emergencySnapshot.state}
         remainingSeconds={emergencySnapshot.remainingSeconds}
-        onClose={() => setIsEmergencyExplicitOpen(false)}
+        onClose={() => {
+          setIsEmergencyExplicitOpen(false);
+          // Caregiver «Закрыть» dismisses the overlay only. Do not cancel the
+          // DB alert — elderly «Я В ПОРЯДКЕ» still goes through cancelEmergency.
+          if (currentRole === 'caregiver') {
+            emergencyService.clear();
+          }
+        }}
         isCaregiverView={currentRole === 'caregiver'}
         online={emergencySnapshot.online}
         lastError={emergencySnapshot.lastError}

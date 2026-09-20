@@ -63,9 +63,14 @@ export const AlertInbox: React.FC<AlertInboxProps> = ({ userId }) => {
         const next = prev.filter((item) => item.id !== row.id);
         return [row, ...next].slice(0, 20);
       });
+      const isTerminal =
+        row.status === 'acknowledged' || row.status === 'cancelled' || row.status === 'resolved';
+      const showingThisEvent = emergencyService.getActiveEvent()?.id === row.id;
+      // Active SOS still opens the modal. Terminal statuses only update an
+      // already-visible event so Close + clear() cannot be undone by realtime.
       if (
         row.type !== 'missed_medication' &&
-        (ACTIVE.has(row.status) || row.status === 'acknowledged')
+        (ACTIVE.has(row.status) || (isTerminal && showingThisEvent))
       ) {
         emergencyService.applyRemoteEvent(row);
       }
