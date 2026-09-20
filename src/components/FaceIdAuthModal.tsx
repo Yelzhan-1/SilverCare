@@ -9,6 +9,7 @@ import {
   detectFace,
   ensureFaceEngine,
   extractDescriptor,
+  fallbackFaceBox,
   type FaceBox,
 } from '../services/faceMatchService';
 import { FaceIdVerifyPanel } from './FaceIdVerifyPanel';
@@ -74,27 +75,36 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
     return () => stopCamera();
   }, [isOpen, mode]);
 
-  const startCamera = async () => {
-    setCameraError(null);
-    const engine = await ensureFaceEngine();
-    if (engine === 'unavailable') {
-      setCameraError('Детектор лиц недоступен. Браузерная биометрия не сработает.');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      setIsCameraActive(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => {});
+  useEffect(() => {
+    if (!isCameraActive) return;
+    let cancelled = false;
+    let tries = 0;
+
+    const attachAndLoop = () => {
+      if (cancelled) return;
+      const video = videoRef.current;
+      const stream = streamRef.current;
+      if (!video || !stream) {
+        tries += 1;
+        if (tries < 12) {
+          requestAnimationFrame(attachAndLoop);
+          return;
+        }
+        setCameraError('Камера включена, но превью не появилось. Нажмите «Повторить».');
+        return;
       }
+      video.srcObject = stream;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('playsinline', 'true');
+      void video.play().catch((err) => {
+        setCameraError(getMediaErrorMessage(err, 'camera'));
+      });
+
       const loop = async () => {
-        if (!videoRef.current || !streamRef.current) return;
+        if (cancelled || !videoRef.current || !streamRef.current) return;
         const box = await detectFace(videoRef.current);
+        if (cancelled) return;
         if (box) {
           setPendingBox(box);
           setFaceHint('Лицо в кадре — можно сохранить эталон');
@@ -107,18 +117,48 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
         });
       };
       void loop();
+    };
+
+    attachAndLoop();
+    return () => {
+      cancelled = true;
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [isCameraActive]);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    void ensureFaceEngine();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setIsCameraActive(true);
     } catch (err) {
-      setCameraError(getMediaErrorMessage(err, 'camera'));
+      setCameraError(`${getMediaErrorMessage(err, 'camera')} Нажмите «Повторить».`);
       setIsCameraActive(false);
     }
   };
 
   const handleCapture = () => {
-    if (!videoRef.current || !pendingBox) return;
-    const descriptor = extractDescriptor(videoRef.current, pendingBox);
+    const video = videoRef.current;
+    if (!video) return;
+    const box = pendingBox ?? (video.videoWidth ? fallbackFaceBox(video) : null);
+    if (!box) {
+      setFaceHint('Подождите: ищем лицо в кадре, или камера ещё запускается.');
+      return;
+    }
+    const descriptor = extractDescriptor(video, box);
     if (descriptor.length < 32) return;
     setPendingDescriptor(descriptor);
-    setAvatarUrl(captureJpeg(videoRef.current, pendingBox));
+    setAvatarUrl(captureJpeg(video, box));
     stopCamera();
     audioAlarmService.playSuccessChime();
   };
@@ -219,13 +259,21 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
 
               <div className="flex items-center gap-3 p-3 rounded-clay-md bg-clay-surface-sunken">
                 <div className="relative w-24 h-24 rounded-clay-md overflow-hidden bg-clay-ink shrink-0">
-                  {isCameraActive ? (
-                    <video ref={videoRef} playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
-                  ) : avatarUrl ? (
-                    <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
+                  <video
+                    ref={videoRef}
+                    playsInline
+                    muted
+                    autoPlay
+                    className={`absolute inset-0 w-full h-full object-cover scale-x-[-1] ${
+                      isCameraActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    }`}
+                  />
+                  {!isCameraActive && avatarUrl ? (
+                    <img src={avatarUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                  ) : null}
+                  {!isCameraActive && !avatarUrl ? (
                     <Camera className="w-8 h-8 text-white m-8" />
-                  )}
+                  ) : null}
                   {isCameraActive && pendingBox ? (
                     <div className="pointer-events-none absolute inset-2 border-2 border-clay-success rounded-lg" />
                   ) : null}
@@ -252,9 +300,18 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
                   )}
                   <p className="text-xs font-semibold text-clay-ink-soft">{faceHint}</p>
                   {cameraError ? (
-                    <p role="alert" className="text-xs font-bold text-clay-danger">
-                      {cameraError}
-                    </p>
+                    <div className="space-y-2">
+                      <p role="alert" className="text-xs font-bold text-clay-danger">
+                        {cameraError}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void startCamera()}
+                        className="clay-tap w-full min-h-11 bg-clay-primary hover:brightness-105 active:brightness-95 text-white text-sm font-bold rounded-clay-md cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-ink"
+                      >
+                        Повторить
+                      </button>
+                    </div>
                   ) : null}
                 </div>
               </div>

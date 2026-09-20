@@ -58,11 +58,37 @@ export async function ensureFaceEngine(): Promise<FaceEngineKind> {
   return engineKind;
 }
 
+export function getFaceEngineKind(): FaceEngineKind | null {
+  return engineKind;
+}
+
+export function fallbackFaceBox(video: HTMLVideoElement): FaceBox {
+  const w = video.videoWidth || 1;
+  const h = video.videoHeight || 1;
+  const side = Math.min(w, h) * 0.72;
+  return {
+    x: Math.max(0, (w - side) / 2),
+    y: Math.max(0, (h - side) / 2),
+    width: Math.max(1, side),
+    height: Math.max(1, side),
+    score: 0.4,
+    keypoints: [],
+  };
+}
+
 export async function detectFace(video: HTMLVideoElement): Promise<FaceBox | null> {
-  const kind = await ensureFaceEngine();
   if (!video.videoWidth || !video.videoHeight) return null;
 
-  if (kind === 'mediapipe' && detector) {
+  if (!engineKind) {
+    void ensureFaceEngine();
+    return fallbackFaceBox(video);
+  }
+
+  if (engineKind === 'unavailable') {
+    return fallbackFaceBox(video);
+  }
+
+  if (engineKind === 'mediapipe' && detector) {
     let ts = performance.now();
     if (ts <= lastVideoTs) ts = lastVideoTs + 1;
     lastVideoTs = ts;
@@ -70,18 +96,22 @@ export async function detectFace(video: HTMLVideoElement): Promise<FaceBox | nul
       const result = detector.detectForVideo(video, ts);
       return pickBest(result.detections, video.videoWidth, video.videoHeight);
     } catch {
-      return null;
+      return fallbackFaceBox(video);
     }
   }
 
-  if (kind === 'native' && nativeDetector) {
-    const faces = await nativeDetector.detect(video);
-    if (!faces.length) return null;
-    const box = faces[0].boundingBox;
-    return toBox(box.x, box.y, box.width, box.height, 1, video.videoWidth, video.videoHeight, []);
+  if (engineKind === 'native' && nativeDetector) {
+    try {
+      const faces = await nativeDetector.detect(video);
+      if (!faces.length) return null;
+      const box = faces[0].boundingBox;
+      return toBox(box.x, box.y, box.width, box.height, 1, video.videoWidth, video.videoHeight, []);
+    } catch {
+      return fallbackFaceBox(video);
+    }
   }
 
-  return null;
+  return fallbackFaceBox(video);
 }
 
 export function extractDescriptor(video: HTMLVideoElement, box: FaceBox): number[] {
