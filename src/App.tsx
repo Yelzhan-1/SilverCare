@@ -113,7 +113,7 @@ export default function App() {
     setAuthStatus('signed-out');
   };
 
-  // 1. Role State: Elderly vs Caregiver — DERIVED directly from the real
+  // 1. Role State: Elderly vs Caregiver вЂ” DERIVED directly from the real
   // profile at render time (not synced via a separate effect+state, which
   // is one render behind and can show the wrong screen for a beat right
   // after onboarding completes). `demoRoleOverride` lets the jury-demo
@@ -140,7 +140,7 @@ export default function App() {
   // 2c. Honest "snooze": map of scheduleItem.id -> persisted snooze record
   // (absolute ringAt ISO timestamp + original scheduled date + a snapshot of
   // the dose). Persisted to localStorage via snoozeService so it survives a
-  // page reload AND a midnight rollover — a real setTimeout re-opens the
+  // page reload AND a midnight rollover вЂ” a real setTimeout re-opens the
   // AlarmScreen for that exact dose when ringAt arrives.
   const [snoozes, setSnoozes] = useState<Record<string, PersistedSnooze>>({});
   const snoozeTimersRef = useRef<Record<string, number>>({});
@@ -228,7 +228,7 @@ export default function App() {
     `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
   // Human-readable "HH:MM" label + absolute ISO ring time for any currently
-  // snoozed items — the ISO is what NextMedicationCard counts its countdown
+  // snoozed items вЂ” the ISO is what NextMedicationCard counts its countdown
   // down to (instead of the now-past original scheduled time).
   const snoozeInfo: Record<string, { label: string; ringAtIso: string }> = {};
   Object.values(snoozes).forEach((record) => {
@@ -275,7 +275,7 @@ export default function App() {
 
   // On mount: restore any snoozed reminders that survived a reload. Ones that
   // are already overdue (app was closed past ringAt) are re-armed with a
-  // small stagger so they still ring — never silently dropped.
+  // small stagger so they still ring вЂ” never silently dropped.
   useEffect(() => {
     const persisted = snoozeService.getAll();
     if (persisted.length === 0) return;
@@ -360,7 +360,7 @@ export default function App() {
         ? 'attention'
         : 'ok';
 
-  // Role switch handler (jury-demo override only — see currentRole above;
+  // Role switch handler (jury-demo override only вЂ” see currentRole above;
   // the real role now lives in Supabase `profiles.role`, not localStorage)
   const handleSelectRole = (role: UserRole) => {
     setDemoRoleOverride(role);
@@ -373,16 +373,16 @@ export default function App() {
       scheduleItems[0] || {
         id: 'demo-item',
         medicationId: 'med-aspirin',
-        name: 'Аспирин Кардио',
-        dosage: '1 таблетка (100 мг)',
+        name: 'РђСЃРїРёСЂРёРЅ РљР°СЂРґРёРѕ',
+        dosage: '1 С‚Р°Р±Р»РµС‚РєР° (100 РјРі)',
         time: currentTimeStr,
         status: 'upcoming' as const,
         photoPreset: 'aspirin-cardio' as const,
-        instructions: 'После еды, запить стаканом теплой воды.',
+        instructions: 'РџРѕСЃР»Рµ РµРґС‹, Р·Р°РїРёС‚СЊ СЃС‚Р°РєР°РЅРѕРј С‚РµРїР»РѕР№ РІРѕРґС‹.',
       };
 
     legacyNotificationService.showNotification(
-      'SilverCare: Время принять лекарство!',
+      'SilverCare: Р’СЂРµРјСЏ РїСЂРёРЅСЏС‚СЊ Р»РµРєР°СЂСЃС‚РІРѕ!',
       `${target.name}, ${target.dosage}`
     );
 
@@ -411,7 +411,7 @@ export default function App() {
     });
     escalationService.markTaken(item.id);
 
-    // 3. Clear any pending snooze timer + persisted record for this item —
+    // 3. Clear any pending snooze timer + persisted record for this item вЂ”
     // it's taken now, no need to re-ring
     if (snoozeTimersRef.current[item.id]) {
       clearTimeout(snoozeTimersRef.current[item.id]);
@@ -431,14 +431,14 @@ export default function App() {
     // 5. Close alarm modal if open
     setActiveAlarmItem(null);
 
-    // 6. Soft, optional memory-exercise suggestion (never forced — the 1-click
+    // 6. Soft, optional memory-exercise suggestion (never forced вЂ” the 1-click
     // confirmation flow is already complete at this point). Auto-hides itself.
     setShowMemoryPrompt(true);
     setTimeout(() => setShowMemoryPrompt(false), 7000);
   };
 
   // HONEST SNOOZE: really re-triggers the same alarm ~5 minutes later,
-  // instead of silently closing the modal. Shows a live "Отложено до HH:MM"
+  // instead of silently closing the modal. Shows a live "РћС‚Р»РѕР¶РµРЅРѕ РґРѕ HH:MM"
   // label + live countdown on the main screen in the meantime, persisted to
   // localStorage so it survives a reload and correctly honors midnight.
   const SNOOZE_DELAY_MS = 5 * 60 * 1000;
@@ -463,11 +463,11 @@ export default function App() {
     escalationService.markSnoozed(item.id);
 
     legacyNotificationService.showNotification(
-      'SilverCare: Напоминание отложено',
-      `Мы напомним снова в ${label}`
+      'SilverCare: РќР°РїРѕРјРёРЅР°РЅРёРµ РѕС‚Р»РѕР¶РµРЅРѕ',
+      `РњС‹ РЅР°РїРѕРјРЅРёРј СЃРЅРѕРІР° РІ ${label}`
     );
-    notificationService.showNotification('⏰ Отложено', {
-      body: `Напомним снова в ${label}`,
+    notificationService.showNotification('вЏ° РћС‚Р»РѕР¶РµРЅРѕ', {
+      body: `РќР°РїРѕРјРЅРёРј СЃРЅРѕРІР° РІ ${label}`,
       tag: 'info',
     });
   };
@@ -490,7 +490,7 @@ export default function App() {
     audioAlarmService.triggerHaptic(50);
     void emergencyService.startCountdown(
       'manual_sos',
-      { reason: 'Нажата кнопка SOS на главном экране' },
+      { reason: 'РќР°Р¶Р°С‚Р° РєРЅРѕРїРєР° SOS РЅР° РіР»Р°РІРЅРѕРј СЌРєСЂР°РЅРµ' },
       15
     );
     setIsEmergencyExplicitOpen(true);
@@ -500,7 +500,7 @@ export default function App() {
   if (authStatus === 'loading') {
     return (
       <div className="min-h-screen w-full bg-clay-bg flex items-center justify-center">
-        <p className="text-clay-ink-soft font-semibold">Загрузка…</p>
+        <p className="text-clay-ink-soft font-semibold">Р—Р°РіСЂСѓР·РєР°вЂ¦</p>
       </div>
     );
   }
@@ -521,9 +521,10 @@ export default function App() {
     );
   }
 
-  const needsFaceGate = Boolean(
-    userProfile.faceIdEnabled && userProfile.faceDescriptor && userProfile.faceDescriptor.length > 0
-  );
+  // Jury hotfix: Face ID feature stays (enroll/demo via RoleSwitcher),
+  // but do NOT block app entry — match gate was locking users out.
+  const needsFaceGate = false;
+  void faceUnlocked;
   if (needsFaceGate && !faceUnlocked) {
     return (
       <div className="min-h-screen w-full bg-clay-bg">
@@ -548,12 +549,12 @@ export default function App() {
           id="silvercare-toast-alert"
           className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#1C1C1E]/95 ios-blur text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-white/10 text-xs sm:text-sm font-semibold max-w-[90%] transition-all animate-bounce"
         >
-          <span className="text-base">🔔</span>
+          <span className="text-base">рџ””</span>
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* SOFT, OPTIONAL MEMORY EXERCISE SUGGESTION — appears briefly after a
+      {/* SOFT, OPTIONAL MEMORY EXERCISE SUGGESTION вЂ” appears briefly after a
           confirmation, never blocks the main scenario, and auto-hides itself.
           Wraps gracefully on narrow viewports instead of clipping/overflowing. */}
       {showMemoryPrompt && (
@@ -562,8 +563,8 @@ export default function App() {
           role="status"
           className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-clay-surface text-clay-ink pl-4 pr-2 py-2 rounded-clay-lg shadow-clay-raised flex flex-wrap items-center justify-center gap-2.5 w-[92%] max-w-sm animate-in fade-in slide-in-from-bottom-4 duration-300"
         >
-          <span className="text-lg" aria-hidden="true">🧠</span>
-          <span className="text-sm font-semibold text-center">Потренировать память?</span>
+          <span className="text-lg" aria-hidden="true">рџ§ </span>
+          <span className="text-sm font-semibold text-center">РџРѕС‚СЂРµРЅРёСЂРѕРІР°С‚СЊ РїР°РјСЏС‚СЊ?</span>
           <div className="flex items-center gap-2 shrink-0">
             <button
               id="btn-accept-memory-prompt"
@@ -573,15 +574,15 @@ export default function App() {
               }}
               className="clay-tap h-9 px-3.5 bg-clay-primary hover:brightness-110 text-white text-xs font-bold rounded-full cursor-pointer transition-colors"
             >
-              Да, 30 сек
+              Р”Р°, 30 СЃРµРє
             </button>
             <button
               id="btn-dismiss-memory-prompt"
               onClick={() => setShowMemoryPrompt(false)}
-              aria-label="Не сейчас, скрыть предложение потренировать память"
+              aria-label="РќРµ СЃРµР№С‡Р°СЃ, СЃРєСЂС‹С‚СЊ РїСЂРµРґР»РѕР¶РµРЅРёРµ РїРѕС‚СЂРµРЅРёСЂРѕРІР°С‚СЊ РїР°РјСЏС‚СЊ"
               className="w-7 h-7 rounded-full text-clay-ink-soft hover:bg-clay-surface-sunken flex items-center justify-center cursor-pointer transition-colors"
             >
-              ✕
+              вњ•
             </button>
           </div>
         </div>
@@ -640,8 +641,8 @@ export default function App() {
         remainingSeconds={emergencySnapshot.remainingSeconds}
         onClose={() => {
           setIsEmergencyExplicitOpen(false);
-          // Caregiver «Закрыть» dismisses the overlay only. Do not cancel the
-          // DB alert — elderly «Я В ПОРЯДКЕ» still goes through cancelEmergency.
+          // Caregiver В«Р—Р°РєСЂС‹С‚СЊВ» dismisses the overlay only. Do not cancel the
+          // DB alert вЂ” elderly В«РЇ Р’ РџРћР РЇР”РљР•В» still goes through cancelEmergency.
           if (currentRole === 'caregiver') {
             emergencyService.clear();
           }
@@ -666,7 +667,7 @@ export default function App() {
           setIsWellbeingOpen(false);
           void emergencyService.startCountdown(
             'fall_detection',
-            { reason: 'Резкое движение (не диагноз падения, не вызов скорой)' },
+            { reason: 'Р РµР·РєРѕРµ РґРІРёР¶РµРЅРёРµ (РЅРµ РґРёР°РіРЅРѕР· РїР°РґРµРЅРёСЏ, РЅРµ РІС‹Р·РѕРІ СЃРєРѕСЂРѕР№)' },
             15
           );
           setIsEmergencyExplicitOpen(true);
@@ -678,7 +679,7 @@ export default function App() {
             'inactivity',
             {
               reason:
-                'Необычный ночной звук (не диагноз апноэ/удушья, не вызов скорой)',
+                'РќРµРѕР±С‹С‡РЅС‹Р№ РЅРѕС‡РЅРѕР№ Р·РІСѓРє (РЅРµ РґРёР°РіРЅРѕР· Р°РїРЅРѕСЌ/СѓРґСѓС€СЊСЏ, РЅРµ РІС‹Р·РѕРІ СЃРєРѕСЂРѕР№)',
             },
             15
           );
@@ -741,7 +742,7 @@ export default function App() {
       />
 
       {/* MORE MENU: discreet single entry point for role switch, caregiver
-          settings, jury demo tools & Face ID — kept out of the elderly main screen. */}
+          settings, jury demo tools & Face ID вЂ” kept out of the elderly main screen. */}
       <RoleSwitcherModal
         isOpen={isRoleSwitcherOpen}
         activeRole={currentRole}
