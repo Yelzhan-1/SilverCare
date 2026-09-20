@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Volume2, Check, AlertCircle, Bird, Bell, Mic } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Volume2, Check, Mic } from 'lucide-react';
 import { TodayScheduleItem } from '../types/medication';
 import { MedicationVisual } from './MedicationVisual';
 import { speechService } from '../services/speechService';
@@ -24,50 +24,47 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
 }) => {
   const [isSuccessState, setIsSuccessState] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const hasAnnouncedRef = useRef(false);
 
   const profile = storageService.getUserProfile();
-  const soundType = profile.alarmSoundType || 'birds';
   const customAudioUrl = item.customAudioUrl || profile.customVoiceAudioUrl;
-  const customVoiceText = item.customVoiceText || profile.customVoiceText;
 
-  // Trigger sound alarm & voice announcement when alert mounts
+  // Med alarm: recorded family voice, else RU TTS. Never birdsong.
   useEffect(() => {
-    // 1. Start pleasant birdsong or chime audio loop
-    audioAlarmService.startAlarmLoop(soundType);
+    let cancelled = false;
+    audioAlarmService.playChime();
 
-    // 2. Play custom voice recording or Russian speech announcement
-    const timer = setTimeout(() => {
-      if (!hasAnnouncedRef.current) {
-        hasAnnouncedRef.current = true;
-        playVoiceMessage();
+    const announce = async () => {
+      if (cancelled) return;
+      setIsSpeaking(true);
+      if (customAudioUrl) {
+        await audioAlarmService.playCustomAudio(customAudioUrl);
+      } else {
+        await speechService.speakMedicationAlert(item.name, item.dosage);
       }
-    }, 500);
+      if (!cancelled) setIsSpeaking(false);
+    };
+
+    void announce();
+    const intervalMs = customAudioUrl ? 6500 : 12000;
+    const interval = window.setInterval(() => {
+      void announce();
+    }, intervalMs);
 
     return () => {
-      clearTimeout(timer);
+      cancelled = true;
+      clearInterval(interval);
       audioAlarmService.stopAlarmLoop();
       speechService.stop();
     };
-  }, [soundType, customAudioUrl, customVoiceText, item.name, item.dosage, userName]);
+  }, [customAudioUrl, item.name, item.dosage]);
 
   const playVoiceMessage = () => {
     setIsSpeaking(true);
-
+    const done = () => setIsSpeaking(false);
     if (customAudioUrl) {
-      // Play user's recorded audio voice
-      audioAlarmService.playCustomAudio(customAudioUrl).then(() => {
-        setIsSpeaking(false);
-      });
+      void audioAlarmService.playCustomAudio(customAudioUrl).then(done);
     } else {
-      // Speak custom or default text via TTS
-      const textToSpeak = customVoiceText
-        ? `${customVoiceText}. ${item.name}, ${item.dosage}.`
-        : `${userName ? `${userName}, время` : 'Время'} принять лекарство. ${item.name}. ${item.dosage}.`;
-
-      speechService.speak(textToSpeak).then(() => {
-        setIsSpeaking(false);
-      });
+      void speechService.speakMedicationAlert(item.name, item.dosage).then(done);
     }
   };
 
@@ -154,19 +151,9 @@ export const AlarmScreen: React.FC<AlarmScreenProps> = ({
             </span>
           </div>
 
-          {/* Sound Type Badge */}
           <div className="flex items-center gap-1.5 px-3 py-1 bg-white/15 rounded-full text-xs font-medium text-white/90">
-            {soundType === 'birds' ? (
-              <>
-                <Bird className="w-3.5 h-3.5 text-[#34C759]" />
-                <span>Пение птиц</span>
-              </>
-            ) : (
-              <>
-                <Bell className="w-3.5 h-3.5 text-amber-300" />
-                <span>Звуковой сигнал</span>
-              </>
-            )}
+            <Mic className="w-3.5 h-3.5" />
+            <span>{customAudioUrl ? 'Голос близких' : 'Голосовое напоминание'}</span>
           </div>
         </div>
       </div>
