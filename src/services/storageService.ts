@@ -232,7 +232,7 @@ export const storageService = {
     const defaultProfile: UserProfile = {
       name: 'Анна Ивановна',
       avatarUrl: '', // empty means generated/preset avatar or prompt for Face ID
-      faceIdEnabled: true,
+      faceIdEnabled: false,
       alarmSoundType: 'birds',
       customVoiceText: 'Мамочка, пожалуйста, прими лекарство вовремя!',
       registeredAt: new Date().toISOString(),

@@ -68,6 +68,8 @@ export interface UserProfile {
   name: string;
   avatarUrl: string;
   faceIdEnabled: boolean;
+  /** Mean-centered luma crop + keypoints from enroll. Required for login gate. */
+  faceDescriptor?: number[];
   registeredAt: string;
   lastLoginAt?: string;
   customVoiceAudioUrl?: string;
