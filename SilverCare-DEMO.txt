@@ -1,0 +1,28 @@
+# SilverCare — DEMO accounts
+# WARNING: this file is in the public GitHub repo. Change passwords after the hackathon.
+
+Production: https://silvercare-six.vercel.app
+Local: http://127.0.0.1:3000/
+
+SilverCare demo accounts (local :3000 + Supabase oyinjdprggupasmtkzoh)
+Created 2026-09-20 for §33 SOS test. Do not commit.
+
+Elderly (подопечный):
+  email: elderly.demo@silvercare.local
+  password: DemoElderly1!
+
+Caregiver (опекун):
+  email: caregiver.demo@silvercare.local
+  password: DemoCare1!
+
+Already linked (invite DEMO33A, status active).
+
+UI check:
+1) npm run dev -> http://localhost:3000
+2) Window A: login elderly -> SOS -> wait 15s (or Нужна помощь)
+3) Window B: login caregiver -> allow notifications -> Alerts card should update
+4) Optional: close B tab -> push after SOS confirm (needs notification permission)
+
+Backend API chain already verified 2026-09-20:
+countdown -> confirmed -> notified (edge) -> acknowledged; duplicate edge alreadyNotified=true.
+Push delivered=0 until browser subscribes.
