@@ -75,7 +75,7 @@ class NotificationService {
   }
 
   async sendMedicationReminder(medicationName: string, dosage: string): Promise<void> {
-    audioAlarmService.playBirdsSong();
+    audioAlarmService.playChime();
     await this.showNotification(`💊 Пора принять ${medicationName}`, {
       body: `${dosage}. Нажмите, чтобы подтвердить приём в 1 клик.`,
       tag: 'medicine',

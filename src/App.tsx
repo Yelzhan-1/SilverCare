@@ -149,6 +149,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile>(() => storageService.getUserProfile());
   const [isFaceIdModalOpen, setIsFaceIdModalOpen] = useState(false);
   const [faceIdMode, setFaceIdMode] = useState<'register' | 'verify'>('register');
+  const [faceUnlocked, setFaceUnlocked] = useState(false);
 
   // 4. Feature Modals Visibility
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -480,6 +481,10 @@ export default function App() {
     setUserProfile(newProfile);
   };
 
+  useEffect(() => {
+    setFaceUnlocked(false);
+  }, [session?.user.id]);
+
   // Trigger manual SOS
   const handleOpenEmergency = () => {
     audioAlarmService.triggerHaptic(50);
@@ -513,6 +518,25 @@ export default function App() {
           setAuthStatus('ready');
         }}
       />
+    );
+  }
+
+  const needsFaceGate = Boolean(
+    userProfile.faceIdEnabled && userProfile.faceDescriptor && userProfile.faceDescriptor.length > 0
+  );
+  if (needsFaceGate && !faceUnlocked) {
+    return (
+      <div className="min-h-screen w-full bg-clay-bg">
+        <FaceIdAuthModal
+          isOpen
+          mode="verify"
+          isGate
+          onClose={() => undefined}
+          onVerified={() => setFaceUnlocked(true)}
+          onProfileUpdated={handleProfileUpdated}
+          onSignOut={handleSignOut}
+        />
+      </div>
     );
   }
 
@@ -761,6 +785,7 @@ export default function App() {
         isOpen={isFaceIdModalOpen}
         onClose={() => setIsFaceIdModalOpen(false)}
         onProfileUpdated={handleProfileUpdated}
+        onVerified={() => setIsFaceIdModalOpen(false)}
         mode={faceIdMode}
       />
 

@@ -239,7 +239,7 @@ class AudioAlarmService {
    * Starts repeating alarm sound until dismissed.
    * 'emergency' is the loud SOS loop for the caregiver second device.
    */
-  public startAlarmLoop(soundType: AlarmLoopType = 'birds', options?: { force?: boolean }) {
+  public startAlarmLoop(soundType: AlarmLoopType = 'chime', options?: { force?: boolean }) {
     if (this.isAlarmPlaying) {
       if (!options?.force && this.currentLoopType === soundType) return;
       this.stopAlarmLoop();
