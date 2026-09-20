@@ -590,6 +590,7 @@ export default function App() {
         <CaregiverDashboardScreen
           onBackToElderly={() => handleSelectRole('elderly')}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
           onOpenDemoMenu={() => setIsRoleSwitcherOpen(true)}
           onTriggerDemoAlarm={triggerDemoAlarm}
           userId={session?.user.id}
@@ -641,7 +642,20 @@ export default function App() {
           setIsWellbeingOpen(false);
           void emergencyService.startCountdown(
             'fall_detection',
-            { reason: 'Резкое движение (не диагноз падения)' },
+            { reason: 'Резкое движение (не диагноз падения, не вызов скорой)' },
+            15
+          );
+          setIsEmergencyExplicitOpen(true);
+        }}
+        onUnusualNightSound={() => {
+          if (emergencyService.getState() !== 'NORMAL') return;
+          setIsWellbeingOpen(false);
+          void emergencyService.startCountdown(
+            'inactivity',
+            {
+              reason:
+                'Необычный ночной звук (не диагноз апноэ/удушья, не вызов скорой)',
+            },
             15
           );
           setIsEmergencyExplicitOpen(true);

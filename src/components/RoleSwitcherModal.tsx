@@ -132,11 +132,13 @@ export const RoleSwitcherModal: React.FC<RoleSwitcherModalProps> = ({
         <div className="pt-2 border-t border-black/[0.06] flex items-center justify-center flex-wrap gap-x-2 gap-y-1 text-xs">
           <span className="text-clay-ink-soft">Вход по биометрии:</span>
           <button
+            type="button"
             onClick={() => {
-              onClose();
+              // Keep this menu open under Face ID so a mid-scan close
+              // cannot dump the user onto home/dashboard.
               onOpenFaceIdDemo();
             }}
-            className="text-clay-primary-ink font-bold hover:underline cursor-pointer"
+            className="text-clay-primary-ink font-bold hover:underline cursor-pointer min-h-11 px-2 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-clay-primary"
           >
             👤 Проверить Face ID
           </button>

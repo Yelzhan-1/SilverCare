@@ -178,6 +178,7 @@ class EmergencyService {
     }
     this.currentState = 'CANCELLED';
     this.remainingSeconds = 0;
+    audioAlarmService.stopAlarmLoop();
     audioAlarmService.playSuccessChime();
     audioAlarmService.triggerHaptic(50);
     this.notify();
@@ -211,6 +212,7 @@ class EmergencyService {
       const row = await alertRepository.acknowledgeAlert(this.activeEvent.id);
       this.activeEvent = toUiEvent(row);
       this.currentState = 'ACKNOWLEDGED';
+      audioAlarmService.stopAlarmLoop();
       audioAlarmService.playSuccessChime();
       this.notify();
     } catch (err) {
@@ -244,11 +246,19 @@ class EmergencyService {
     else if (row.status === 'cancelled') this.currentState = 'CANCELLED';
     else if (row.status === 'resolved') this.currentState = 'RESOLVED';
     else if (row.status === 'countdown') this.currentState = 'COUNTDOWN';
+
+    if (isTerminal) {
+      audioAlarmService.stopAlarmLoop();
+    } else if (isActiveEcho) {
+      audioAlarmService.startAlarmLoop('emergency', { force: true });
+      audioAlarmService.triggerHaptic([400, 150, 400, 150, 400]);
+    }
     this.notify();
   }
 
   clear(): void {
     this.stopTimer();
+    audioAlarmService.stopAlarmLoop();
     if (this.activeEvent?.id) {
       this.dismissedEventId = this.activeEvent.id;
     }

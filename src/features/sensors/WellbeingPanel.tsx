@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Activity, Moon } from 'lucide-react';
 import { requestMotionPermission, startFallDetector, type MotionPermission } from './fallDetection';
-import { MicNightMonitorStub, type NightMonitorStatus } from './nightMonitoring';
+import { LiveMicNightMonitor, type NightMonitorStatus } from './nightMonitoring';
 import { audioAlarmService } from '../../services/audioAlarmService';
 
 export interface WellbeingPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onPossibleFall: () => void;
+  onUnusualNightSound: () => void;
   onOpenMyDay: () => void;
   onOpenFamily: () => void;
   onOpenFlashcards: () => void;
@@ -17,6 +18,7 @@ export const WellbeingPanel: React.FC<WellbeingPanelProps> = ({
   isOpen,
   onClose,
   onPossibleFall,
+  onUnusualNightSound,
   onOpenMyDay,
   onOpenFamily,
   onOpenFlashcards,
@@ -25,12 +27,12 @@ export const WellbeingPanel: React.FC<WellbeingPanelProps> = ({
   const [fallOn, setFallOn] = useState(false);
   const [night, setNight] = useState<NightMonitorStatus>('off');
   const stopFall = useRef<(() => void) | null>(null);
-  const nightStub = useRef(new MicNightMonitorStub());
+  const nightMonitor = useRef<LiveMicNightMonitor | null>(null);
 
   useEffect(() => {
     return () => {
       stopFall.current?.();
-      nightStub.current.stop();
+      nightMonitor.current?.stop();
     };
   }, []);
 
@@ -61,11 +63,15 @@ export const WellbeingPanel: React.FC<WellbeingPanelProps> = ({
 
   const toggleNight = async () => {
     if (night === 'listening') {
-      nightStub.current.stop();
+      nightMonitor.current?.stop();
+      nightMonitor.current = null;
       setNight('off');
       return;
     }
-    const status = await nightStub.current.start();
+    nightMonitor.current = new LiveMicNightMonitor({
+      onUnusualSound: onUnusualNightSound,
+    });
+    const status = await nightMonitor.current.start();
     setNight(status);
   };
 
@@ -118,15 +124,15 @@ export const WellbeingPanel: React.FC<WellbeingPanelProps> = ({
         <section className="bg-clay-highlight rounded-clay-md p-4 space-y-3 shadow-clay-spotlight">
           <div className="flex items-center gap-2 text-clay-ink font-black">
             <Moon className="w-5 h-5 text-clay-primary" aria-hidden="true" />
-            Ночное наблюдение (макет)
+            Ночное наблюдение
           </div>
           <p className="text-sm font-semibold text-clay-ink-soft leading-relaxed">
-            Модуль можно подключить позже. Сейчас это заглушка: микрофон не распознаёт дыхание и не ставит
-            диагноз. Помощь сам по себе не вызывает.
+            Живой микрофон ловит «необычный ночной звук» по громкости (RMS/пик). Это не диагноз апноэ,
+            не удушье и не вызов скорой. При срабатывании начнётся проверка SOS — её можно отменить.
           </p>
           {night === 'unavailable' ? (
             <p role="status" className="text-sm font-bold text-clay-warning">
-              Микрофон недоступен.
+              Микрофон недоступен. Разрешите доступ или используйте SOS вручную.
             </p>
           ) : (
             <button
@@ -138,7 +144,7 @@ export const WellbeingPanel: React.FC<WellbeingPanelProps> = ({
                   : 'bg-clay-surface-sunken text-clay-ink'
               }`}
             >
-              {night === 'listening' ? 'Макет слушает микрофон' : 'Включить макет'}
+              {night === 'listening' ? 'Слушаю — выключить' : 'Включить ночной микрофон'}
             </button>
           )}
         </section>

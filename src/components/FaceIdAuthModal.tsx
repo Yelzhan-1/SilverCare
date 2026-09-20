@@ -56,13 +56,22 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isSuccessScan, setIsSuccessScan] = useState(false);
+  const [isFailedScan, setIsFailedScan] = useState(false);
   const [isVerifyingUnlock, setIsVerifyingUnlock] = useState(mode === 'verify');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const scanTimerRef = useRef<number | null>(null);
 
-  // Sync state when modal opens
+  const clearScanTimers = () => {
+    if (scanTimerRef.current !== null) {
+      clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+  };
+
+  // Sync state when modal opens. Never auto-navigate away mid-scan.
   useEffect(() => {
     if (isOpen) {
       const p = storageService.getUserProfile();
@@ -71,13 +80,18 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
       setAvatarUrl(p.avatarUrl || PRESET_AVATARS[0].url);
       setIsVerifyingUnlock(mode === 'verify');
       setIsSuccessScan(false);
+      setIsFailedScan(false);
 
       if (mode === 'verify') {
         runVerificationFlow(p.name || 'Анна Ивановна');
       }
     } else {
       stopCamera();
+      clearScanTimers();
     }
+    return () => {
+      clearScanTimers();
+    };
   }, [isOpen, mode]);
 
   // Clean up camera stream on unmount
@@ -150,10 +164,12 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
       setAvatarUrl(capturedDataUrl);
     }
 
-    // Biometric recognition animation
-    setTimeout(() => {
+    // Biometric recognition animation — stay in-modal until user confirms.
+    clearScanTimers();
+    scanTimerRef.current = window.setTimeout(() => {
       setIsScanning(false);
       setIsSuccessScan(true);
+      setIsFailedScan(false);
       stopCamera();
       audioAlarmService.playSuccessChime();
     }, 1200);
@@ -162,18 +178,25 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
   const runVerificationFlow = (name: string) => {
     setIsVerifyingUnlock(true);
     setIsScanning(true);
+    setIsSuccessScan(false);
+    setIsFailedScan(false);
     audioAlarmService.triggerHaptic(50);
 
-    setTimeout(() => {
+    clearScanTimers();
+    scanTimerRef.current = window.setTimeout(() => {
       setIsScanning(false);
       setIsSuccessScan(true);
       audioAlarmService.playSuccessChime();
       speechService.speak(`Здравствуйте, ${name}. Лицо распознано.`);
-
-      setTimeout(() => {
-        onClose();
-      }, 1600);
     }, 1500);
+  };
+
+  const handleVerifyFail = () => {
+    clearScanTimers();
+    setIsScanning(false);
+    setIsSuccessScan(false);
+    setIsFailedScan(true);
+    audioAlarmService.triggerHaptic(40);
   };
 
   const handleSaveProfile = () => {
@@ -198,7 +221,7 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
   return (
     <div
       id="face-id-modal-backdrop"
-      className="fixed inset-0 z-50 bg-black/75 ios-blur flex items-center justify-center p-4 overflow-y-auto font-sans"
+      className="fixed inset-0 z-[60] bg-black/75 ios-blur flex items-center justify-center p-4 overflow-y-auto font-sans"
     >
       <div
         id="face-id-modal-panel"
@@ -252,7 +275,7 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
                   </div>
                 )}
 
-                {/* Success Indicator Overlay */}
+                {/* Success / fail stay inside the modal — never dump to home mid-scan. */}
                 {isSuccessScan && (
                   <div className="absolute inset-0 bg-[#34C759]/90 flex flex-col items-center justify-center text-white animate-in zoom-in-95 duration-200">
                     <div className="w-14 h-14 rounded-full bg-white text-[#34C759] flex items-center justify-center shadow-md mb-1.5">
@@ -261,21 +284,69 @@ export const FaceIdAuthModal: React.FC<FaceIdAuthModalProps> = ({
                     <span className="text-base font-bold">Успешно!</span>
                   </div>
                 )}
+                {isFailedScan && (
+                  <div className="absolute inset-0 bg-[#FF3B30]/90 flex flex-col items-center justify-center text-white">
+                    <div className="w-14 h-14 rounded-full bg-white text-[#FF3B30] flex items-center justify-center shadow-md mb-1.5">
+                      <X className="w-8 h-8 stroke-[3.5]" />
+                    </div>
+                    <span className="text-base font-bold">Не удалось</span>
+                  </div>
+                )}
               </div>
 
               <h4 className="text-2xl font-extrabold text-[#1C1C1E] mb-1 font-sans">
-                {isSuccessScan ? `Здравствуйте, ${userName}!` : 'Сканирование лица...'}
+                {isSuccessScan
+                  ? `Здравствуйте, ${userName}!`
+                  : isFailedScan
+                    ? 'Сканирование не завершено'
+                    : 'Сканирование лица...'}
               </h4>
               <p className="text-sm font-normal text-[#8E8E93] max-w-xs">
                 {isSuccessScan
-                  ? 'Вход выполнен. Приятного дня!'
-                  : 'Посмотрите в камеру для авторизации'}
+                  ? 'Лицо распознано. Остаёмся в этом окне — нажмите «Готово».'
+                  : isFailedScan
+                    ? 'Можно повторить сканирование или изменить фото, не покидая окно.'
+                    : 'Посмотрите в камеру для авторизации'}
               </p>
 
-              <div className="mt-6 flex gap-2.5 w-full">
+              <div className="mt-6 flex flex-col gap-2.5 w-full">
+                {isSuccessScan && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full min-h-12 h-12 bg-black hover:bg-zinc-800 active:opacity-75 text-white font-semibold rounded-2xl text-sm cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#007AFF]"
+                  >
+                    Готово
+                  </button>
+                )}
+                {isFailedScan && (
+                  <button
+                    type="button"
+                    onClick={() => runVerificationFlow(userName)}
+                    className="w-full min-h-12 h-12 bg-black hover:bg-zinc-800 active:opacity-75 text-white font-semibold rounded-2xl text-sm cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#007AFF]"
+                  >
+                    Повторить сканирование
+                  </button>
+                )}
+                {isScanning && (
+                  <button
+                    type="button"
+                    onClick={handleVerifyFail}
+                    className="w-full min-h-12 h-12 bg-[#F2F2F7] hover:bg-[#E5E5EA] active:opacity-75 text-[#1C1C1E] font-semibold rounded-2xl text-sm cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#007AFF]"
+                  >
+                    Прервать сканирование
+                  </button>
+                )}
                 <button
-                  onClick={() => setIsVerifyingUnlock(false)}
-                  className="flex-1 h-12 bg-[#F2F2F7] hover:bg-[#E5E5EA] text-[#1C1C1E] font-semibold rounded-2xl text-sm transition-colors cursor-pointer"
+                  type="button"
+                  onClick={() => {
+                    clearScanTimers();
+                    setIsScanning(false);
+                    setIsSuccessScan(false);
+                    setIsFailedScan(false);
+                    setIsVerifyingUnlock(false);
+                  }}
+                  className="w-full min-h-12 h-12 bg-[#F2F2F7] hover:bg-[#E5E5EA] active:opacity-75 text-[#1C1C1E] font-semibold rounded-2xl text-sm cursor-pointer focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#007AFF]"
                 >
                   Изменить имя или фото
                 </button>
