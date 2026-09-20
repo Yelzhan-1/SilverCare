@@ -218,6 +218,13 @@ class EmergencyService {
   }
 
   applyRemoteEvent(row: AlertRow): void {
+    const isTerminal =
+      row.status === 'acknowledged' || row.status === 'cancelled' || row.status === 'resolved';
+    // After caregiver dismiss (clear → NORMAL), do not reopen the overlay
+    // from a stale acknowledged/cancelled/resolved realtime echo.
+    if (isTerminal && this.currentState === 'NORMAL') {
+      return;
+    }
     this.activeEvent = toUiEvent(row);
     if (row.status === 'acknowledged') this.currentState = 'ACKNOWLEDGED';
     else if (row.status === 'notified' || row.status === 'confirmed') this.currentState = 'CAREGIVER_NOTIFIED';
