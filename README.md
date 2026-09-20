@@ -7,16 +7,21 @@
 
 ```bash
 npm install
-cp .env.example .env   # заполните VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY
+cp .env.example .env   # заполните VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_VAPID_PUBLIC_KEY
 npm run dev
 ```
 
 `.env` в git не коммитится (см. `.gitignore`). Используйте **anon/publishable** ключ —
 никогда не кладите `service_role`/секретные ключи во frontend.
 
+`npm run build` и `npm run dev` сначала запускают `scripts/check-env.mjs` и
+падают, если переменные пустые / placeholder / неверной формы. На Vercel задайте
+их в Project Settings → Environment Variables (Production) и сделайте Redeploy —
+иначе сборка не должна проходить молча.
+
 ```bash
 npm run lint   # tsc --noEmit
-npm run build  # vite build
+npm run build  # check-env && vite build
 ```
 
 ## Аккаунты, роли и связь опекун↔подопечный (Sprint A)
