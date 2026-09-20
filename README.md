@@ -151,6 +151,10 @@ Android Chrome предпочтителен (Web Push). Два аккаунта 
 
 ## Документы для команды
 
-- [Описание](docs/ABOUT.md)
-- [Гайд и сценарий презентации](docs/TEAM-GUIDE.md)
-- Демо-логины: локально `Desktop/SilverCare-DEMO.txt` (не в репозитории)
+В корне репозитория (сразу видно при входе в GitHub):
+
+- [SilverCare-ABOUT.md](SilverCare-ABOUT.md) — описание
+- [SilverCare-TEAM-GUIDE.md](SilverCare-TEAM-GUIDE.md) — гайд и сценарий презентации
+- [SilverCare-DEMO.txt](SilverCare-DEMO.txt) — демо-логины (сменить пароли после хакатона)
+
+Также копии в `docs/ABOUT.md` и `docs/TEAM-GUIDE.md`.
